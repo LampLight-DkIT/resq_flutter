@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "87749260710",
+    "project_id": "resq-38f65",
+    "storage_bucket": "resq-38f65.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:87749260710:android:100ad5b86ad30e9c280b67",
+        "android_client_info": {
+          "package_name": "com.adityasutar.resqapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQagEedMQ5AzANiIyVnmBj14MjCk2uOIM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:87749260710:android:9a6736203f0c29a9280b67",
+        "android_client_info": {
+          "package_name": "com.resq.resq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQagEedMQ5AzANiIyVnmBj14MjCk2uOIM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

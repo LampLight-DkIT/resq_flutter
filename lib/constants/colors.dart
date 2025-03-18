@@ -43,6 +43,7 @@ class AppColors {
   static const Color inversePrimary = Color(0xff9ccbfb);
 
   // base colors
+  static const Color base = Colors.white;
   static const Color darkBlue = Color(0xff303E4F);
   static const Color goldenYellow = Color(0xffCEB14F);
   static const Color pureWhite = Color(0xffDDDEDE);

@@ -76,6 +76,24 @@ class SendEmergencyAlert extends EmergencyContactsEvent {
   List<Object?> get props => [userId, contactId, customMessage];
 }
 
+// New event for sending emergency alerts with media attachments
+class SendEmergencyAlertWithMedia extends EmergencyContactsEvent {
+  final String userId;
+  final String contactId;
+  final String? customMessage;
+  final List<String> mediaUrls;
+
+  const SendEmergencyAlertWithMedia(
+    this.userId,
+    this.contactId, {
+    this.customMessage,
+    this.mediaUrls = const [],
+  });
+
+  @override
+  List<Object?> get props => [userId, contactId, customMessage, mediaUrls];
+}
+
 class FollowUser extends EmergencyContactsEvent {
   final String currentUserId;
   final String targetUserId;
@@ -116,4 +134,22 @@ class SendDirectEmergencyAlert extends EmergencyContactsEvent {
 
   @override
   List<Object?> get props => [senderId, receiverUserId, message];
+}
+
+// New event for sending direct emergency alerts with media
+class SendDirectEmergencyAlertWithMedia extends EmergencyContactsEvent {
+  final String senderId;
+  final String receiverUserId;
+  final String message;
+  final List<String> mediaUrls;
+
+  const SendDirectEmergencyAlertWithMedia(
+    this.senderId,
+    this.receiverUserId,
+    this.message, {
+    this.mediaUrls = const [],
+  });
+
+  @override
+  List<Object?> get props => [senderId, receiverUserId, message, mediaUrls];
 }

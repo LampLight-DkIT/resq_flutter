@@ -95,10 +95,9 @@ class _ProfilePageContentState extends State<ProfilePageContent> {
   void _saveProfileChanges() {
     final currentUser = context.read<AuthBloc>().state;
     if (currentUser is AuthAuthenticated) {
-      // Get phone without country code
-      final phoneWithoutCode = _phoneController.text
-              .startsWith(_selectedCountryCode)
-          ? _phoneController.text.substring(_selectedCountryCode.length).trim()
+      // Strip any country code prefix from the phone number if it exists
+      final phoneWithoutCode = _phoneController.text.startsWith('+')
+          ? _phoneController.text.replaceFirst(RegExp(r'^\+\d+\s*'), '')
           : _phoneController.text.trim();
 
       context.read<ProfileBloc>().add(
@@ -195,6 +194,7 @@ class _ProfilePageContentState extends State<ProfilePageContent> {
       controller: controller,
       enabled: _isEditing,
       maxLines: maxLines,
+      style: Theme.of(context).textTheme.bodyMedium,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
@@ -222,7 +222,7 @@ class _ProfilePageContentState extends State<ProfilePageContent> {
                 _selectedCountryCode = countryCode.dialCode ?? '+1';
               });
             },
-            initialSelection: 'US',
+            initialSelection: _getCountryFromDialCode(_selectedCountryCode),
             favorite: const ['US', 'CA', 'GB', 'IN'],
             showCountryOnly: false,
             showOnlyCountryWhenClosed: false,
@@ -236,6 +236,7 @@ class _ProfilePageContentState extends State<ProfilePageContent> {
             controller: _phoneController,
             enabled: _isEditing,
             keyboardType: TextInputType.phone,
+            style: Theme.of(context).textTheme.bodyMedium,
             decoration: InputDecoration(
               labelText: 'Phone Number',
               border: OutlineInputBorder(
@@ -248,6 +249,30 @@ class _ProfilePageContentState extends State<ProfilePageContent> {
         ),
       ],
     );
+  }
+
+  /// Helper method to convert dial code to country code
+  String _getCountryFromDialCode(String dialCode) {
+    // Map common dial codes to country codes
+    Map<String, String> dialToCountry = {
+      '+1': 'US',
+      '+44': 'GB',
+      '+91': 'IN',
+      '+61': 'AU',
+      '+86': 'CN',
+      '+49': 'DE',
+      '+33': 'FR',
+      '+81': 'JP',
+      '+7': 'RU',
+      '+55': 'BR',
+      '+52': 'MX',
+      '+39': 'IT',
+      '+34': 'ES',
+      '+82': 'KR',
+      '+1': 'CA',
+    };
+
+    return dialToCountry[dialCode] ?? 'US'; // Default to US if not found
   }
 
   @override
@@ -277,16 +302,19 @@ class _ProfilePageContentState extends State<ProfilePageContent> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.message)),
             );
-          } else if (state is ProfileLoaded && _isEditing == false) {
-            // Update text controllers with loaded data
-            _nameController.text = state.profileData['name'] ?? '';
-            _emailController.text = state.profileData['email'] ?? '';
+          } else if (state is ProfileLoaded) {
+            if (!_isEditing) {
+              // Update text controllers with loaded data
+              _nameController.text = state.profileData['name'] ?? '';
+              _emailController.text = state.profileData['email'] ?? '';
+              _bioController.text = state.profileData['bio'] ?? '';
 
-            // Set country code and phone number
-            _selectedCountryCode = state.profileData['countryCode'] ?? '+1';
-            _phoneController.text = state.profileData['phoneNumber'] ?? '';
+              // Set country code from profile data
+              _selectedCountryCode = state.profileData['countryCode'] ?? '+1';
 
-            _bioController.text = state.profileData['bio'] ?? '';
+              // Set phone number without the country code
+              _phoneController.text = state.profileData['phoneNumber'] ?? '';
+            }
           }
         },
         builder: (context, state) {

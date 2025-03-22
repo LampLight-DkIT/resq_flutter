@@ -70,7 +70,6 @@ class EmergencyContactsRepository {
   }
 
   // Send emergency alert
-  // In EmergencyContactsRepository
   Future<void> sendEmergencyAlert(String userId, String contactId,
       {String? customMessage}) async {
     try {
@@ -94,10 +93,78 @@ class EmergencyContactsRepository {
         'recipientId': contactId,
         'message': customMessage ?? 'Emergency alert!',
         'timestamp': FieldValue.serverTimestamp(),
+        'mediaUrls': [], // Add empty mediaUrls array for consistency
+        'hasMedia': false,
         // Add any additional metadata
       });
     } catch (e) {
       print('Emergency Alert Error: $e');
+      rethrow;
+    }
+  }
+
+  // Send emergency alert with media attachments
+  Future<void> sendEmergencyAlertWithMedia(
+    String userId,
+    String contactId, {
+    String? customMessage,
+    List<String> mediaUrls = const [],
+  }) async {
+    try {
+      // Log detailed information
+      print('Sending Emergency Alert with Media:');
+      print('- Sender User ID: $userId');
+      print('- Contact/Recipient ID: $contactId');
+      print('- Custom Message: $customMessage');
+      print('- Media URLs count: ${mediaUrls.length}');
+
+      // Verify contact exists
+      final contactDoc =
+          await _firestore.collection('users').doc(contactId).get();
+
+      if (!contactDoc.exists) {
+        throw Exception('Recipient user not found');
+      }
+
+      // Get the sender's information
+      final senderDoc = await _firestore.collection('users').doc(userId).get();
+      final senderData = senderDoc.data() as Map<String, dynamic>?;
+      final senderName = senderData?['name'] ?? 'Unknown User';
+
+      // Additional validation and send logic
+      await _firestore.collection('emergency_alerts').add({
+        'senderId': userId,
+        'senderName': senderName,
+        'recipientId': contactId,
+        'message': customMessage ?? 'Emergency alert!',
+        'timestamp': FieldValue.serverTimestamp(),
+        'mediaUrls': mediaUrls,
+        'hasMedia': mediaUrls.isNotEmpty,
+        'mediaCount': mediaUrls.length,
+        'status': 'sent',
+      });
+
+      // Also add to dashboard_alerts for admin dashboard (if you have this feature)
+      await _firestore.collection('dashboard_alerts').add({
+        'senderId': userId,
+        'senderName': senderName,
+        'receiverId': contactId,
+        'receiverName': contactDoc.exists
+            ? (contactDoc.data() as Map<String, dynamic>)['name'] ?? 'Unknown'
+            : 'Unknown',
+        'content': customMessage ?? 'Emergency alert!',
+        'timestamp': FieldValue.serverTimestamp(),
+        'type': 'emergency_with_media',
+        'status': 'pending',
+        'isHandled': false,
+        'handledBy': '',
+        'handledAt': null,
+        'mediaUrls': mediaUrls,
+        'hasMedia': mediaUrls.isNotEmpty,
+        'mediaCount': mediaUrls.length,
+      });
+    } catch (e) {
+      print('Emergency Alert with Media Error: $e');
       rethrow;
     }
   }
@@ -236,6 +303,8 @@ class EmergencyContactsRepository {
         'content': message,
         'timestamp': DateTime.now().toIso8601String(),
         'type': 'emergency_message',
+        'mediaUrls': [], // Add empty mediaUrls array for consistency
+        'hasMedia': false,
       });
 
       // Also add to dashboard_alerts for admin dashboard
@@ -260,9 +329,63 @@ class EmergencyContactsRepository {
         'isHandled': false,
         'handledBy': '',
         'handledAt': null,
+        'mediaUrls': [],
+        'hasMedia': false,
       });
     } catch (e) {
       throw Exception('Failed to send direct emergency alert: ${e.toString()}');
+    }
+  }
+
+  // New method for sending direct emergency alerts with media
+  Future<void> sendDirectEmergencyAlertWithMedia(
+    String senderId,
+    String receiverUserId,
+    String message, {
+    List<String> mediaUrls = const [],
+  }) async {
+    try {
+      // Create the emergency notification for the receiver
+      await _firestore.collection('emergency_notifications').add({
+        'senderId': senderId,
+        'receiverId': receiverUserId,
+        'content': message,
+        'timestamp': DateTime.now().toIso8601String(),
+        'type': 'emergency_message_with_media',
+        'mediaUrls': mediaUrls,
+        'hasMedia': mediaUrls.isNotEmpty,
+        'mediaCount': mediaUrls.length,
+      });
+
+      // Also add to dashboard_alerts for admin dashboard
+      final senderDoc =
+          await _firestore.collection('users').doc(senderId).get();
+      final receiverDoc =
+          await _firestore.collection('users').doc(receiverUserId).get();
+
+      await _firestore.collection('dashboard_alerts').add({
+        'senderId': senderId,
+        'senderName': senderDoc.exists
+            ? (senderDoc.data() as Map<String, dynamic>)['name'] ?? 'Unknown'
+            : 'Unknown',
+        'receiverId': receiverUserId,
+        'receiverName': receiverDoc.exists
+            ? (receiverDoc.data() as Map<String, dynamic>)['name'] ?? 'Unknown'
+            : 'Unknown',
+        'content': message,
+        'timestamp': FieldValue.serverTimestamp(),
+        'type': 'direct_emergency_with_media',
+        'status': 'pending',
+        'isHandled': false,
+        'handledBy': '',
+        'handledAt': null,
+        'mediaUrls': mediaUrls,
+        'hasMedia': mediaUrls.isNotEmpty,
+        'mediaCount': mediaUrls.length,
+      });
+    } catch (e) {
+      throw Exception(
+          'Failed to send direct emergency alert with media: ${e.toString()}');
     }
   }
 }

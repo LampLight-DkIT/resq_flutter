@@ -6,12 +6,18 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
 import 'package:resq/features/chats/models/message_model.dart';
 import 'package:uuid/uuid.dart';
 
 class AttachmentHandler {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final ImagePicker _imagePicker = ImagePicker();
+  final _audioRecorder = AudioRecorder();
+  bool _isRecording = false;
+  String? _recordingPath;
 
   // Pick an image from gallery or camera
   Future<File?> pickImage(ImageSource source) async {
@@ -62,6 +68,63 @@ class AttachmentHandler {
     }
     return null;
   }
+
+  // Start recording audio
+  Future<bool> startRecording() async {
+    try {
+      // Check microphone permission
+      final permissionStatus = await Permission.microphone.request();
+      if (!permissionStatus.isGranted) {
+        debugPrint('Microphone permission denied');
+        return false;
+      }
+
+      // Create a unique filename for the recording
+      final appDir = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final filePath = '${appDir.path}/audio_$timestamp.m4a';
+
+      debugPrint('Recording to file: $filePath');
+
+      // Configure recording
+      final config = RecordConfig(
+        encoder: AudioEncoder.aacLc,
+        bitRate: 128000,
+        sampleRate: 44100,
+      );
+
+      // Start recording
+      await _audioRecorder.start(config, path: filePath);
+      _isRecording = true;
+      _recordingPath = filePath;
+
+      return true;
+    } catch (e) {
+      debugPrint('Error starting recording: $e');
+      return false;
+    }
+  }
+
+  // Stop recording and return the file
+  Future<File?> stopRecording() async {
+    if (!_isRecording || _recordingPath == null) return null;
+
+    try {
+      final path = await _audioRecorder.stop();
+      _isRecording = false;
+
+      if (path != null) {
+        return File(path);
+      }
+    } catch (e) {
+      debugPrint('Error stopping recording: $e');
+    }
+
+    return null;
+  }
+
+  // Check if currently recording
+  bool get isRecording => _isRecording;
 
   // Get current location
   Future<Position?> getCurrentLocation() async {
@@ -140,5 +203,13 @@ class AttachmentHandler {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  // Clean up resources
+  Future<void> dispose() async {
+    if (_isRecording) {
+      await _audioRecorder.stop();
+    }
+    await _audioRecorder.dispose();
   }
 }

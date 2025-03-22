@@ -33,10 +33,37 @@ class EmergencyContactsError extends EmergencyContactsState {
 
 class EmergencyAlertSent extends EmergencyContactsState {}
 
+class EmergencyAlertWithMediaSent extends EmergencyContactsState {
+  final List<String> mediaUrls;
+
+  const EmergencyAlertWithMediaSent({this.mediaUrls = const []});
+
+  @override
+  List<Object?> get props => [mediaUrls];
+}
+
 class EmergencyAlertError extends EmergencyContactsState {
   final String message;
 
   const EmergencyAlertError(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
+class MediaUploadInProgress extends EmergencyContactsState {
+  final double progress;
+
+  const MediaUploadInProgress(this.progress);
+
+  @override
+  List<Object?> get props => [progress];
+}
+
+class MediaUploadError extends EmergencyContactsState {
+  final String message;
+
+  const MediaUploadError(this.message);
 
   @override
   List<Object?> get props => [message];

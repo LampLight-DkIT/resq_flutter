@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:resq/core/services/attachment_handler.dart';
 import 'package:resq/features/add_contact_page/model/emergency_contact_model.dart';
 import 'package:resq/features/add_contact_page/presentation/emergency_alert_page.dart';
@@ -249,8 +250,67 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         onDocumentSelected: _handleDocumentSelection,
         onAudioSelected: _handleAudioSelection,
         onLocationSelected: _handleLocationSelection,
+        onRecordAudio: _handleAudioRecording, // Add this new handler
       ),
     );
+  }
+
+  void _handleAudioRecording() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Provider.value(
+        value: _attachmentHandler,
+        child: AudioRecordingDialog(
+          onComplete: (File audioFile) {
+            _handleAudioFile(audioFile);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _handleAudioFile(File audioFile) async {
+    if (_chatRoom == null || !mounted) return;
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Processing audio...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final audioUrl = await _attachmentHandler.uploadFile(
+          audioFile, _chatRoom!.id, MessageType.audio);
+
+      if (audioUrl != null && mounted) {
+        // Close loading dialog
+        Navigator.of(context, rootNavigator: true).pop();
+
+        // For recorded audio, we can include a duration if we track it during recording
+        // For now, we'll use a placeholder
+        final content = '$audioUrl|recorded_audio';
+        _sendMediaMessage(content, MessageType.audio);
+      }
+    } catch (e) {
+      if (mounted) {
+        // Close loading dialog
+        Navigator.of(context, rootNavigator: true).pop();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading audio: $e')),
+        );
+      }
+    }
   }
 
   void _handleImageSelection(ImageSource source) async {
@@ -433,6 +493,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     _messageController.dispose();
     _scrollController.dispose();
     _typingTimer?.cancel();
+    _attachmentHandler.dispose(); // Add this line
     super.dispose();
   }
 

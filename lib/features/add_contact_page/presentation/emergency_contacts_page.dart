@@ -93,15 +93,14 @@ class _EmergencyContactsPageContentState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading:
-                  const Icon(Icons.chat_outlined, color: AppColors.darkBlue),
-              title: const Text('Chat'),
-              onTap: () {
-                Navigator.pop(context);
-                context.goToChat(contact);
-              },
-            ),
+            if (contact.isFollowing)
+              IconButton(
+                icon:
+                    const Icon(Icons.chat_outlined, color: AppColors.darkBlue),
+                onPressed: () {
+                  context.goToChat(contact);
+                },
+              ),
             if (contact.isFollowing) // Only show for app users you're following
               ListTile(
                 leading: const Icon(Icons.person_outlined,

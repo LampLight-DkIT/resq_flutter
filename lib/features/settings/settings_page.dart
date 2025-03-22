@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:resq/features/auth/bloc/auth_bloc.dart';
+import 'package:resq/features/auth/bloc/auth_event.dart';
+import 'package:resq/router/router.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -9,228 +13,85 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  // Toggles for various settings.
-  bool _isDarkTheme = false;
-  bool _pushNotifications = true;
-  bool _emailNotifications = true;
-  bool _locationSharing = false;
+  Future<bool> _onWillPop() async {
+    if (context.canPop()) {
+      context.pop();
+      return false;
+    } else {
+      // Navigate to home instead of exiting
+      context.goToHome();
+      return false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Settings"),
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("Settings"),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              // Safely navigate back without exiting the app
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.goToHome();
+              }
+            },
+          ),
+        ),
+        body: ListView(
+          children: [
+            // Only keep the logout option
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text("Logout", style: TextStyle(color: Colors.red)),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                // Show logout confirmation dialog
+                _showLogoutConfirmationDialog();
+              },
+            ),
+          ],
+        ),
       ),
-      body: ListView(
-        children: [
-          // =========================
-          // Account Settings Section
-          // =========================
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Account Settings",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person),
-            title: const Text("Profile"),
-            subtitle: const Text("Edit your profile details"),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () {
-              // TODO: Navigate to Profile screen.
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.lock),
-            title: const Text("Change Password"),
-            subtitle: const Text("Update your password"),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () {
-              // TODO: Navigate to Change Password screen.
-            },
-          ),
-          const Divider(),
+    );
+  }
 
-          // =========================
-          // Emergency Features Section
-          // =========================
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Emergency Features",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+  // Only keep the logout dialog method
+  void _showLogoutConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to logout?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
           ),
-          ListTile(
-            leading: Icon(Icons.vibration, color: Colors.red),
-            title: const Text("Shake Detection"),
-            subtitle: const Text(
-                "Configure emergency alerts when you shake your device"),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
-              // Navigate to shake settings screen
-              context.push('/settings/shake');
-            },
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.location_on, color: Colors.red),
-            title: const Text("Location Sharing in Emergencies"),
-            value: _locationSharing,
-            onChanged: (value) {
-              setState(() {
-                _locationSharing = value;
-              });
-            },
-          ),
-          const Divider(),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close the dialog
 
-          // =========================
-          // Notifications Section
-          // =========================
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Notifications",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.notifications),
-            title: const Text("Push Notifications"),
-            value: _pushNotifications,
-            onChanged: (value) {
-              setState(() {
-                _pushNotifications = value;
-              });
-            },
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.email),
-            title: const Text("Email Notifications"),
-            value: _emailNotifications,
-            onChanged: (value) {
-              setState(() {
-                _emailNotifications = value;
-              });
-            },
-          ),
-          const Divider(),
+              // Dispatch the correct logout event to AuthBloc
+              try {
+                context.read<AuthBloc>().add(AuthLogout());
 
-          // =========================
-          // Privacy Section
-          // =========================
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Privacy",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.security),
-            title: const Text("Privacy Policy"),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () {
-              // TODO: Navigate to Privacy Policy screen.
+                // Navigate to login page after logout
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  context.goToLogin();
+                });
+              } catch (e) {
+                print("Error during logout: $e");
+                // Fallback if there's an error
+                context.goToLogin();
+              }
             },
-          ),
-          ListTile(
-            leading: const Icon(Icons.vpn_lock),
-            title: const Text("Two-Factor Authentication"),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () {
-              // TODO: Navigate to Two-Factor Authentication screen.
-            },
-          ),
-          const Divider(),
-
-          // =========================
-          // Display / Appearance Section
-          // =========================
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Display",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.brightness_6),
-            title: const Text("Dark Theme"),
-            value: _isDarkTheme,
-            onChanged: (value) {
-              setState(() {
-                _isDarkTheme = value;
-                // TODO: Apply the theme change to the app if needed.
-              });
-            },
-          ),
-          const Divider(),
-
-          // =========================
-          // Other Settings Section
-          // =========================
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Other",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.language),
-            title: const Text("Language"),
-            subtitle: const Text("Change app language"),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () {
-              // TODO: Navigate to Language selection screen.
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text("About"),
-            subtitle: const Text("Version info, Terms & Conditions, etc."),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () {
-              // TODO: Navigate to About screen.
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.feedback_outlined),
-            title: const Text("Feedback"),
-            subtitle: const Text("Send us your feedback"),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () {
-              // TODO: Navigate to Feedback screen.
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.logout),
-            title: const Text("Logout"),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () {
-              // TODO: Handle the logout functionality.
-            },
+            child: const Text("Logout", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

@@ -22,11 +22,15 @@ class EmergencyContactsBloc
     on<DeleteEmergencyContact>(_onDeleteEmergencyContact);
     on<SendEmergencyAlert>(_onSendEmergencyAlert);
 
-    // Note: These handlers are being kept, but we should consider removing them
-    // in the future to ensure a clean separation between UserBloc and EmergencyContactsBloc
+    // New handlers for media-related events
+    on<SendEmergencyAlertWithMedia>(_onSendEmergencyAlertWithMedia);
+    on<SendDirectEmergencyAlertWithMedia>(_onSendDirectEmergencyAlertWithMedia);
+
+    // Existing handlers for user-related events
     on<FollowUser>(_onFollowUser);
     on<UnfollowUser>(_onUnfollowUser);
     on<SearchUsers>(_onSearchUsers, transformer: _debounce());
+    on<SendDirectEmergencyAlert>(_onSendDirectEmergencyAlert);
   }
 
   @override
@@ -105,6 +109,22 @@ class EmergencyContactsBloc
     }
   }
 
+  // New handler for sending emergency alerts with media
+  Future<void> _onSendEmergencyAlertWithMedia(SendEmergencyAlertWithMedia event,
+      Emitter<EmergencyContactsState> emit) async {
+    try {
+      await _repository.sendEmergencyAlertWithMedia(
+        event.userId,
+        event.contactId,
+        customMessage: event.customMessage,
+        mediaUrls: event.mediaUrls,
+      );
+      emit(EmergencyAlertWithMediaSent(mediaUrls: event.mediaUrls));
+    } catch (e) {
+      emit(EmergencyAlertError(e.toString()));
+    }
+  }
+
   Future<void> _onFollowUser(
       FollowUser event, Emitter<EmergencyContactsState> emit) async {
     try {
@@ -153,6 +173,23 @@ class EmergencyContactsBloc
         event.message,
       );
       emit(EmergencyAlertSent());
+    } catch (e) {
+      emit(EmergencyAlertError(e.toString()));
+    }
+  }
+
+  // New handler for sending direct emergency alerts with media
+  Future<void> _onSendDirectEmergencyAlertWithMedia(
+      SendDirectEmergencyAlertWithMedia event,
+      Emitter<EmergencyContactsState> emit) async {
+    try {
+      await _repository.sendDirectEmergencyAlertWithMedia(
+        event.senderId,
+        event.receiverUserId,
+        event.message,
+        mediaUrls: event.mediaUrls,
+      );
+      emit(EmergencyAlertWithMediaSent(mediaUrls: event.mediaUrls));
     } catch (e) {
       emit(EmergencyAlertError(e.toString()));
     }

@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:resq/core/services/attachment_handler.dart';
 import 'package:resq/features/add_contact_page/model/emergency_contact_model.dart';
 import 'package:resq/features/add_contact_page/presentation/emergency_alert_page.dart';
 import 'package:resq/features/chats/bloc/chat_bloc.dart';
@@ -13,6 +16,7 @@ import 'package:resq/features/chats/bloc/chat_event.dart';
 import 'package:resq/features/chats/bloc/chat_state.dart';
 import 'package:resq/features/chats/models/chat_room_model.dart';
 import 'package:resq/features/chats/models/message_model.dart';
+import 'package:resq/widget/widget.dart';
 
 class ChatPage extends StatefulWidget {
   final EmergencyContact contact;
@@ -33,6 +37,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   bool _isTyping = false;
   Timer? _typingTimer;
   List<Message> _currentMessages = [];
+  final AttachmentHandler _attachmentHandler = AttachmentHandler();
 
   @override
   void initState() {
@@ -153,9 +158,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     }
 
     final message = Message(
-      id: DateTime.now()
-          .millisecondsSinceEpoch
-          .toString(), // Temporary ID for UI
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       senderId: currentUser.uid,
       receiverId: widget.contact.userId!,
       chatRoomId: _chatRoom!.id,
@@ -175,7 +178,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // Scroll to bottom
     _scrollToBottom();
 
-    // Send message to backend
+    // Send message to backend - BLoC will handle offline scenarios
     if (isEmergency) {
       _chatBloc.add(SendEmergencyMessage(message, location: location));
     } else {
@@ -235,6 +238,194 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     );
   }
 
+  void _showAttachmentOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => AttachmentOptionsBottomSheet(
+        onImageSelected: _handleImageSelection,
+        onDocumentSelected: _handleDocumentSelection,
+        onAudioSelected: _handleAudioSelection,
+        onLocationSelected: _handleLocationSelection,
+      ),
+    );
+  }
+
+  void _handleImageSelection(ImageSource source) async {
+    final File? imageFile = await _attachmentHandler.pickImage(source);
+    if (imageFile == null || !mounted) return;
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Uploading image...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final imageUrl = await _attachmentHandler.uploadFile(
+          imageFile, _chatRoom!.id, MessageType.image);
+
+      if (imageUrl != null && mounted) {
+        // Close loading dialog
+        Navigator.of(context, rootNavigator: true).pop();
+
+        _sendMediaMessage(imageUrl, MessageType.image);
+      }
+    } catch (e) {
+      if (mounted) {
+        // Close loading dialog
+        Navigator.of(context, rootNavigator: true).pop();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading image: $e')),
+        );
+      }
+    }
+  }
+
+  void _handleDocumentSelection() async {
+    final File? documentFile = await _attachmentHandler.pickDocument();
+    if (documentFile == null || !mounted) return;
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Uploading document...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final documentUrl = await _attachmentHandler.uploadFile(
+          documentFile, _chatRoom!.id, MessageType.document);
+
+      if (documentUrl != null && mounted) {
+        // Close loading dialog
+        Navigator.of(context, rootNavigator: true).pop();
+
+        final fileName = _attachmentHandler.getFileName(documentFile.path);
+        final fileSize = _attachmentHandler.getFileSize(documentFile);
+        final fileExt = _attachmentHandler.getFileExtension(documentFile.path);
+
+        final content = '$documentUrl|$fileName|$fileSize|$fileExt';
+        _sendMediaMessage(content, MessageType.document);
+      }
+    } catch (e) {
+      if (mounted) {
+        // Close loading dialog
+        Navigator.of(context, rootNavigator: true).pop();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading document: $e')),
+        );
+      }
+    }
+  }
+
+  void _handleAudioSelection() async {
+    final File? audioFile = await _attachmentHandler.pickAudio();
+    if (audioFile == null || !mounted) return;
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Uploading audio...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final audioUrl = await _attachmentHandler.uploadFile(
+          audioFile, _chatRoom!.id, MessageType.audio);
+
+      if (audioUrl != null && mounted) {
+        // Close loading dialog
+        Navigator.of(context, rootNavigator: true).pop();
+
+        // Here you could calculate the duration of the audio file
+        // For now, we'll just use a placeholder
+        final content = '$audioUrl|0:30';
+        _sendMediaMessage(content, MessageType.audio);
+      }
+    } catch (e) {
+      if (mounted) {
+        // Close loading dialog
+        Navigator.of(context, rootNavigator: true).pop();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading audio: $e')),
+        );
+      }
+    }
+  }
+
+  void _handleLocationSelection() async {
+    final position = await _attachmentHandler.getCurrentLocation();
+    if (position == null || !mounted) return;
+
+    final locationString = '${position.latitude},${position.longitude}';
+    _sendMediaMessage(locationString, MessageType.location);
+  }
+
+  // Add a helper method for sending media messages
+  void _sendMediaMessage(String content, MessageType type) async {
+    if (_chatRoom == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chat room not initialized properly')),
+      );
+      return;
+    }
+
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    final message = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      senderId: currentUser.uid,
+      receiverId: widget.contact.userId!,
+      chatRoomId: _chatRoom!.id,
+      content: content,
+      timestamp: DateTime.now(),
+      type: type,
+    );
+
+    // Optimistically add message to UI
+    setState(() {
+      _currentMessages = [..._currentMessages, message];
+    });
+
+    // Scroll to bottom
+    _scrollToBottom();
+
+    // Send message to backend
+    _chatBloc.add(SendMessage(message));
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -245,11 +436,106 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  // Helper method to build message bubbles
+  Widget _buildMessageBubble(Message message, bool isCurrentUser) {
+    return Row(
+      mainAxisAlignment:
+          isCurrentUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (!isCurrentUser)
+          CircleAvatar(
+            radius: 16,
+            backgroundImage: widget.contact.photoURL != null
+                ? NetworkImage(widget.contact.photoURL!)
+                : null,
+            child: widget.contact.photoURL == null
+                ? Text(widget.contact.name[0].toUpperCase(),
+                    style: const TextStyle(fontSize: 12))
+                : null,
+          ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8.0),
+            child: _getMessageContent(message, isCurrentUser),
+          ),
+        ),
+        if (isCurrentUser)
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0),
+            child: Icon(Icons.done_all,
+                size: 16, color: message.isRead ? Colors.blue : Colors.grey),
+          ),
+      ],
+    );
+  }
+
+  // Helper method to get the appropriate message content based on type
+  Widget _getMessageContent(Message message, bool isCurrentUser) {
+    // Handle specialized message types with their custom widgets
+    if (message.type == MessageType.image)
+      return ImageMessageBubble(message: message, isCurrentUser: isCurrentUser);
+    if (message.type == MessageType.document)
+      return DocumentMessageBubble(
+          message: message, isCurrentUser: isCurrentUser);
+    if (message.type == MessageType.audio)
+      return AudioMessageBubble(message: message, isCurrentUser: isCurrentUser);
+    if (message.type == MessageType.location)
+      return LocationMessageBubble(
+          message: message, isCurrentUser: isCurrentUser);
+
+    // Default case: text and emergency messages
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      decoration: BoxDecoration(
+        color: isCurrentUser ? Colors.blue.shade100 : Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(20.0),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 2,
+              offset: const Offset(0, 1))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message.content,
+            style: TextStyle(
+                color: isCurrentUser ? Colors.blue[900] : Colors.black87,
+                fontSize: 15),
+          ),
+          if (message.type == MessageType.emergency)
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4)),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.warning_amber, color: Colors.red, size: 12),
+                  SizedBox(width: 4),
+                  Text('EMERGENCY',
+                      style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // Explicit back button that uses GoRouter
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -278,30 +564,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                         fontSize: 16, fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: widget.contact.isFollowing
-                              ? Colors.green
-                              : Colors.grey,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        widget.contact.isFollowing ? 'Online' : 'Offline',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: widget.contact.isFollowing
-                              ? Colors.green
-                              : Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -322,7 +584,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
               _chatRoom = state.chatRoom;
               _isLoading = false;
             });
-            // Load messages for the chat room
             _chatBloc.add(LoadMessages(state.chatRoom.id));
           } else if (state is MessagesLoaded) {
             setState(() {
@@ -338,7 +599,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
             );
             _scrollToBottom();
           } else if (state is MessageSent) {
-            // Note: We're already handling this with optimistic updates
             _scrollToBottom();
           } else if (state is ChatError) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -350,31 +610,21 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
           }
         },
         builder: (context, state) {
-          // Show loading indicator while initializing
           if (_isLoading && _currentMessages.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Handle different states for non-app users
           if (!widget.contact.isFollowing) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.block,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
+                  Icon(Icons.block, size: 64, color: Colors.grey[400]),
                   const SizedBox(height: 16),
                   Text(
-                    'Cannot chat with this contact\n'
-                    'They are not an app user or not following you',
+                    'Cannot chat with this contact\nThey are not an app user or not following you',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 16),
                   ),
                 ],
               ),
@@ -383,7 +633,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
           return Column(
             children: [
-              // Chat date header
+              // Today header
               Container(
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -395,11 +645,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'Today', // You can replace with actual date logic
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                    ),
+                    'Today',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
                   ),
                 ),
               ),
@@ -411,41 +658,34 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.chat_bubble_outline,
-                              size: 64,
-                              color: Colors.grey[300],
-                            ),
+                            Icon(Icons.chat_bubble_outline,
+                                size: 64, color: Colors.grey[300]),
                             const SizedBox(height: 16),
                             const Text(
                               'No messages yet.\nStart the conversation!',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 16,
-                              ),
+                              style:
+                                  TextStyle(color: Colors.grey, fontSize: 16),
                             ),
                           ],
                         ),
                       )
                     : ListView.builder(
                         controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0, vertical: 8.0),
+                        padding: const EdgeInsets.all(16.0),
                         itemCount: _currentMessages.length,
                         itemBuilder: (context, index) {
                           final message = _currentMessages[index];
                           final isCurrentUser =
                               message.senderId == _auth.currentUser?.uid;
 
-                          // Check if we need to show timestamp header
-                          bool showTimestamp = true;
-                          if (index > 0) {
-                            final prevMessage = _currentMessages[index - 1];
-                            final timeDiff = message.timestamp
-                                .difference(prevMessage.timestamp);
-                            showTimestamp = timeDiff.inMinutes > 5;
-                          }
+                          // Show timestamp if it's the first message or if the time gap is significant
+                          final showTimestamp = index == 0 ||
+                              message.timestamp
+                                      .difference(
+                                          _currentMessages[index - 1].timestamp)
+                                      .inMinutes >
+                                  5;
 
                           return Column(
                             children: [
@@ -457,123 +697,12 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                                     DateFormat('MMM d, h:mm a')
                                         .format(message.timestamp),
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                      fontStyle: FontStyle.italic,
-                                    ),
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                        fontStyle: FontStyle.italic),
                                   ),
                                 ),
-                              Row(
-                                mainAxisAlignment: isCurrentUser
-                                    ? MainAxisAlignment.end
-                                    : MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  if (!isCurrentUser)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                          right: 8.0, bottom: 4.0),
-                                      child: CircleAvatar(
-                                        radius: 16,
-                                        backgroundImage:
-                                            widget.contact.photoURL != null
-                                                ? NetworkImage(
-                                                    widget.contact.photoURL!)
-                                                : null,
-                                        child: widget.contact.photoURL == null
-                                            ? Text(
-                                                widget.contact.name[0]
-                                                    .toUpperCase(),
-                                                style: const TextStyle(
-                                                    fontSize: 12))
-                                            : null,
-                                      ),
-                                    ),
-                                  Flexible(
-                                    child: Container(
-                                      margin:
-                                          const EdgeInsets.only(bottom: 8.0),
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 16.0, vertical: 10.0),
-                                      decoration: BoxDecoration(
-                                        color: isCurrentUser
-                                            ? Colors.blue.shade100
-                                            : Colors.grey.shade200,
-                                        borderRadius:
-                                            BorderRadius.circular(20.0),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color:
-                                                Colors.black.withOpacity(0.05),
-                                            blurRadius: 2,
-                                            offset: const Offset(0, 1),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            message.content,
-                                            style: TextStyle(
-                                              color: isCurrentUser
-                                                  ? Colors.blue[900]
-                                                  : Colors.black87,
-                                              fontSize: 15,
-                                            ),
-                                          ),
-                                          if (message.type ==
-                                              MessageType.emergency)
-                                            Container(
-                                              margin:
-                                                  const EdgeInsets.only(top: 4),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color:
-                                                    Colors.red.withOpacity(0.2),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: const Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(Icons.warning_amber,
-                                                      color: Colors.red,
-                                                      size: 12),
-                                                  SizedBox(width: 4),
-                                                  Text(
-                                                    'EMERGENCY',
-                                                    style: TextStyle(
-                                                      color: Colors.red,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 10,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  if (isCurrentUser)
-                                    Padding(
-                                      padding: const EdgeInsets.only(left: 4.0),
-                                      child: Icon(
-                                        Icons.done_all,
-                                        size: 16,
-                                        color: message.isRead
-                                            ? Colors.blue
-                                            : Colors.grey,
-                                      ),
-                                    ),
-                                ],
-                              ),
+                              _buildMessageBubble(message, isCurrentUser),
                             ],
                           );
                         },
@@ -614,18 +743,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Attachment button
+                      // Attachment button - updated to use _showAttachmentOptions
                       IconButton(
                         icon: const Icon(Icons.attach_file),
                         color: Colors.grey,
-                        onPressed: () {
-                          // Implement attachment functionality
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Attachments coming soon')),
-                          );
-                        },
+                        onPressed: _showAttachmentOptions,
                       ),
+
                       // Message text field
                       Expanded(
                         child: Container(
@@ -649,7 +773,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                                 icon: const Icon(Icons.emoji_emotions_outlined),
                                 color: Colors.amber,
                                 onPressed: () {
-                                  // Implement emoji picker
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                         content:
@@ -662,11 +785,12 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
+
                       const SizedBox(width: 8),
+
                       // Send button
                       GestureDetector(
                         onLongPress: () {
-                          // Implement voice message recording
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                                 content: Text('Voice messages coming soon')),

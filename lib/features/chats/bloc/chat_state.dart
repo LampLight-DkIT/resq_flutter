@@ -81,3 +81,20 @@ class EmergencyMessageSent extends ChatState {
 }
 
 class MessagesMarkedAsRead extends ChatState {}
+
+enum NotificationType {
+  info,
+  success,
+  error,
+  warning,
+}
+
+class ChatNotification extends ChatState {
+  final String message;
+  final NotificationType type;
+
+  const ChatNotification(this.message, this.type);
+
+  @override
+  List<Object?> get props => [message, type];
+}

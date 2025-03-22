@@ -5,6 +5,8 @@ enum MessageType {
   emergency,
   location,
   image,
+  document,
+  audio,
 }
 
 class Message extends Equatable {

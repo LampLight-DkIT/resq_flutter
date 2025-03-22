@@ -103,3 +103,5 @@ enum SortType {
   name,
   recent,
 }
+
+class ProcessPendingMessages extends ChatEvent {}

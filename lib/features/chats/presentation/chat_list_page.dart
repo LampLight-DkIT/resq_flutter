@@ -8,6 +8,7 @@ import 'package:resq/features/add_contact_page/model/emergency_contact_model.dar
 import 'package:resq/features/chats/bloc/chat_bloc.dart';
 import 'package:resq/features/chats/bloc/chat_event.dart';
 import 'package:resq/features/chats/bloc/chat_state.dart';
+import 'package:resq/features/chats/models/chat_room_model.dart';
 import 'package:resq/router/router.dart';
 
 class ChatListPage extends StatefulWidget {
@@ -130,184 +131,44 @@ class _ChatListPageState extends State<ChatListPage> {
       ),
       body: BlocBuilder<ChatBloc, ChatState>(
         builder: (context, state) {
+          // First check if we have a loading state with no cached data
           if (state is ChatLoading) {
+            // Check if BLoC already has cached chat rooms
+            final chatBloc = context.read<ChatBloc>();
+            if (chatBloc.hasCachedChatRooms) {
+              // Use cached rooms while loading new data
+              return _buildChatList(chatBloc.cachedChatRooms);
+            }
             return const Center(child: CircularProgressIndicator());
           } else if (state is ChatRoomsLoaded) {
-            final chatRooms = state.chatRooms;
-
-            if (chatRooms.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.chat_bubble_outline,
-                      size: 64,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _isSearching
-                          ? "No chats found"
-                          : "No chats yet!\nFollow users to start chatting",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.people_alt_outlined),
-                      label: const Text('Discover Users'),
-                      onPressed: _navigateToDiscoverUsers,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.darkBlue,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return ListView.builder(
-              itemCount: chatRooms.length,
-              itemBuilder: (context, index) {
-                final chatRoom = chatRooms[index];
-
-                return Dismissible(
-                  key: Key(chatRoom.id),
-                  background: Container(
-                    color: Colors.red,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 16),
-                    child: const Icon(
-                      Icons.delete,
-                      color: Colors.white,
-                    ),
-                  ),
-                  direction: DismissDirection.endToStart,
-                  onDismissed: (direction) {
-                    context.read<ChatBloc>().add(DeleteChatRoom(chatRoom.id));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content:
-                            Text('Chat with ${chatRoom.otherUserName} removed'),
-                        action: SnackBarAction(
-                          label: 'UNDO',
-                          onPressed: () {
-                            context.read<ChatBloc>().add(UndoDeleteChatRoom());
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                  child: ListTile(
-                    leading: Stack(
-                      children: [
-                        CircleAvatar(
-                          backgroundImage: chatRoom.otherUserPhotoUrl != null
-                              ? NetworkImage(chatRoom.otherUserPhotoUrl!)
-                              : null,
-                          child: chatRoom.otherUserPhotoUrl == null
-                              ? Text(chatRoom.otherUserName[0].toUpperCase())
-                              : null,
-                        ),
-                        if (chatRoom.isOnline)
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: Colors.green,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color:
-                                      Theme.of(context).scaffoldBackgroundColor,
-                                  width: 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    title: Text(
-                      chatRoom.otherUserName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: chatRoom.lastMessage != null
-                        ? Text(
-                            chatRoom.lastMessage!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          )
-                        : const Text("No messages yet"),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        chatRoom.lastMessageTime != null
-                            ? Text(
-                                _formatLastMessageTime(
-                                    chatRoom.lastMessageTime),
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                ),
-                              )
-                            : const SizedBox(),
-                        const SizedBox(height: 4),
-                        if (chatRoom.unreadCount > 0)
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: AppColors.darkBlue,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Text(
-                              chatRoom.unreadCount.toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    onTap: () {
-                      // Create EmergencyContact from ChatRoom
-                      final contact = EmergencyContact(
-                        id: chatRoom.otherUserId,
-                        name: chatRoom.otherUserName,
-                        phoneNumber: '',
-                        countryCode: '+1',
-                        relation: '',
-                        secretMessage: '',
-                        isFollowing: true,
-                        userId: chatRoom.otherUserId,
-                        photoURL: chatRoom.otherUserPhotoUrl,
-                      );
-
-                      // Navigate to chat page
-                      context.goToChat(contact);
-                    },
-                  ),
-                );
-              },
-            );
+            return _buildChatList(state.chatRooms);
+          } else if (state is ChatRoomsFiltered) {
+            return _buildChatList(state.filteredChatRooms);
           } else if (state is ChatError) {
             return Center(
-              child: Text(
-                'Error: ${state.message}',
-                style: const TextStyle(color: Colors.red),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Error: ${state.message}',
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 16),
+                  // Even on error, try to show cached rooms if available
+                  if (context.read<ChatBloc>().hasCachedChatRooms)
+                    _buildChatList(context.read<ChatBloc>().cachedChatRooms),
+                ],
               ),
             );
           }
 
+          // Instead of showing "Loading chats...", try to use cached data
+          final chatBloc = context.read<ChatBloc>();
+          if (chatBloc.hasCachedChatRooms) {
+            return _buildChatList(chatBloc.cachedChatRooms);
+          }
+
+          // Only as a fallback
           return const Center(child: Text('Loading chats...'));
         },
       ),
@@ -316,6 +177,171 @@ class _ChatListPageState extends State<ChatListPage> {
         backgroundColor: AppColors.darkBlue,
         child: const Icon(Icons.person_add, color: Colors.white),
       ),
+    );
+  }
+
+  // Extract chat list building logic to a separate method
+  Widget _buildChatList(List<ChatRoom> chatRooms) {
+    if (chatRooms.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.chat_bubble_outline,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _isSearching
+                  ? "No chats found"
+                  : "No chats yet!\nFollow users to start chatting",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.people_alt_outlined),
+              label: const Text('Discover Users'),
+              onPressed: _navigateToDiscoverUsers,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.darkBlue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: chatRooms.length,
+      itemBuilder: (context, index) {
+        final chatRoom = chatRooms[index];
+
+        return Dismissible(
+          key: Key(chatRoom.id),
+          background: Container(
+            color: Colors.red,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 16),
+            child: const Icon(
+              Icons.delete,
+              color: Colors.white,
+            ),
+          ),
+          direction: DismissDirection.endToStart,
+          onDismissed: (direction) {
+            context.read<ChatBloc>().add(DeleteChatRoom(chatRoom.id));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Chat with ${chatRoom.otherUserName} removed'),
+                action: SnackBarAction(
+                  label: 'UNDO',
+                  onPressed: () {
+                    context.read<ChatBloc>().add(UndoDeleteChatRoom());
+                  },
+                ),
+              ),
+            );
+          },
+          child: ListTile(
+            leading: Stack(
+              children: [
+                CircleAvatar(
+                  backgroundImage: chatRoom.otherUserPhotoUrl != null
+                      ? NetworkImage(chatRoom.otherUserPhotoUrl!)
+                      : null,
+                  child: chatRoom.otherUserPhotoUrl == null
+                      ? Text(chatRoom.otherUserName[0].toUpperCase())
+                      : null,
+                ),
+                if (chatRoom.isOnline)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            title: Text(
+              chatRoom.otherUserName,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: chatRoom.lastMessage != null
+                ? Text(
+                    chatRoom.lastMessage!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : const Text("No messages yet"),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                chatRoom.lastMessageTime != null
+                    ? Text(
+                        _formatLastMessageTime(chatRoom.lastMessageTime),
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 12,
+                        ),
+                      )
+                    : const SizedBox(),
+                const SizedBox(height: 4),
+                if (chatRoom.unreadCount > 0)
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.darkBlue,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      chatRoom.unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            onTap: () {
+              // Create EmergencyContact from ChatRoom
+              final contact = EmergencyContact(
+                id: chatRoom.otherUserId,
+                name: chatRoom.otherUserName,
+                phoneNumber: '',
+                countryCode: '+1',
+                relation: '',
+                secretMessage: '',
+                isFollowing: true,
+                userId: chatRoom.otherUserId,
+                photoURL: chatRoom.otherUserPhotoUrl,
+              );
+
+              // Navigate to chat page
+              context.goToChat(contact);
+            },
+          ),
+        );
+      },
     );
   }
 }

@@ -160,7 +160,7 @@ class _EmergencyContactsPageContentState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Emergency Contacts'),
+        title: const Text('Alerts'),
         titleTextStyle: Theme.of(context).textTheme.bodyMedium!.copyWith(
               fontWeight: FontWeight.w700,
             ),

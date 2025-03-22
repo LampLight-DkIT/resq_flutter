@@ -51,8 +51,8 @@ class _HomePageState extends State<HomePage> {
           tabs: [
             const GButton(icon: Icons.forum, text: 'Chats'),
             const GButton(
-              icon: Icons.warning_amber_outlined,
-              text: 'Emergency',
+              icon: Icons.help_outlined,
+              text: 'Alerts',
             ),
             const GButton(icon: Icons.notifications, text: 'Alerts'),
             const GButton(icon: Icons.person, text: 'Profile'),

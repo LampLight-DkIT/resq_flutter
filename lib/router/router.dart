@@ -26,6 +26,7 @@ class AppRoutes {
   static const chat = '/chat';
   static const profile = '/profile';
   static const settings = '/settings';
+  static const shakeSettings = '/settings/shake'; // Add new route
   static const discoverUsers = '/discover-users';
 }
 
@@ -105,6 +106,8 @@ extension NavigationExtensions on BuildContext {
   void goToAddContact() => go(AppRoutes.addContact);
   void goToProfile() => go(AppRoutes.profile);
   void goToSettings() => go(AppRoutes.settings);
+  void goToShakeSettings() =>
+      go(AppRoutes.shakeSettings); // Add new navigation method
 
   // Method to navigate to chat with a specific contact
   // Changed from go() to push() to maintain navigation stack

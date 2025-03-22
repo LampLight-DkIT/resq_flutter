@@ -6,10 +6,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:resq/features/chats/bloc/chat_event.dart';
 import 'package:resq/features/chats/models/chat_room_model.dart';
 import 'package:resq/features/chats/models/message_model.dart';
+import 'package:resq/offline/chat_cache/chat_cache_repository.dart';
 
 class ChatRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final ChatCacheRepository? _cacheRepository;
+
+  ChatRepository({ChatCacheRepository? cacheRepository})
+      : _cacheRepository = cacheRepository;
 
   // Create or get existing chat room
   Future<ChatRoom> createChatRoom({
@@ -93,40 +98,69 @@ class ChatRepository {
     return chatRoom;
   }
 
-  // Send message
+  // Send message with caching support
   Future<Message> sendMessage({
     required Message message,
     String? location,
+    bool isOffline = false,
   }) async {
-    final messageRef = _firestore
-        .collection('chat_rooms')
-        .doc(message.chatRoomId)
-        .collection('messages')
-        .doc();
+    // Create a copy with a temporary ID if needed
+    final String tempId = message.id.isEmpty
+        ? 'temp_${DateTime.now().millisecondsSinceEpoch}'
+        : message.id;
+    final localMessage = message.copyWith(id: tempId);
 
-    final messageWithId = message.copyWith(id: messageRef.id);
+    // Handle optimistic UI updates with cache if available
+    if (_cacheRepository != null) {
+      await _cacheRepository!.addMessageToCache(localMessage);
 
-    await messageRef.set(messageWithId.toMap());
-
-    // Update last message in chat room
-    await _firestore.collection('chat_rooms').doc(message.chatRoomId).update({
-      'lastMessage': message.content,
-      'lastMessageTime': message.timestamp.toIso8601String(),
-      'unreadCount_${message.receiverId}': FieldValue.increment(1),
-    });
-
-    // Send emergency notification if it's an emergency message
-    if (message.type == MessageType.emergency) {
-      await _sendEmergencyNotification(messageWithId, location: location);
+      // If offline, add to pending queue
+      if (isOffline) {
+        await _cacheRepository!.addToPendingQueue(localMessage);
+        return localMessage;
+      }
     }
 
-    return messageWithId;
+    try {
+      // Real Firestore operation
+      final messageRef = _firestore
+          .collection('chat_rooms')
+          .doc(message.chatRoomId)
+          .collection('messages')
+          .doc();
+
+      final messageWithId = localMessage.copyWith(id: messageRef.id);
+
+      await messageRef.set(messageWithId.toMap());
+
+      // Update last message in chat room
+      await _firestore.collection('chat_rooms').doc(message.chatRoomId).update({
+        'lastMessage': message.content,
+        'lastMessageTime': message.timestamp.toIso8601String(),
+        'unreadCount_${message.receiverId}': FieldValue.increment(1),
+      });
+
+      // Send emergency notification if it's an emergency message
+      if (message.type == MessageType.emergency) {
+        await _sendEmergencyNotification(messageWithId, location: location);
+      }
+
+      // If we used a temporary ID for the cache, update it
+      if (_cacheRepository != null && localMessage.id.startsWith('temp_')) {
+        await _cacheRepository!.addMessageToCache(messageWithId);
+      }
+
+      return messageWithId;
+    } catch (e) {
+      // Keep optimistic message in cache on error
+      return localMessage;
+    }
   }
 
   // Send emergency notification
   Future<void> _sendEmergencyNotification(Message message,
       {String? location}) async {
-    // Get user information for the dashboard
+    // Existing implementation...
     DocumentSnapshot senderDoc;
     DocumentSnapshot receiverDoc;
 
@@ -174,8 +208,75 @@ class ChatRepository {
     await _firestore.collection('dashboard_alerts').add(dashboardAlert);
   }
 
-  // Load chat rooms for a user
+  // Load chat rooms for a user - with caching
   Stream<List<ChatRoom>> getChatRooms(String userId) {
+    // If caching is enabled, use a custom stream with cache-first approach
+    if (_cacheRepository != null) {
+      final controller = StreamController<List<ChatRoom>>();
+
+      // Immediately emit cached data
+      Future<void> emitCachedData() async {
+        final cachedRooms = _cacheRepository!.getCachedChatRooms(userId);
+        if (cachedRooms.isNotEmpty) {
+          controller.add(cachedRooms);
+        }
+      }
+
+      // Then listen to Firestore for latest data
+      void listenToFirestore() {
+        final subscription = _firestore
+            .collection('chat_rooms')
+            .where('participants', arrayContains: userId)
+            .snapshots()
+            .listen(
+          (snapshot) {
+            final chatRooms = snapshot.docs.map((doc) {
+              final data = doc.data();
+              final participants = List<String>.from(data['participants']);
+              final otherUserId = participants.firstWhere((id) => id != userId,
+                  orElse: () => '');
+
+              return ChatRoom(
+                id: doc.id,
+                currentUserId: userId,
+                otherUserId: otherUserId,
+                otherUserName: data['otherUserName_$userId'] ?? 'Unknown',
+                otherUserPhotoUrl: data['otherUserPhotoUrl_$userId'],
+                lastMessage: data['lastMessage'],
+                lastMessageTime: data['lastMessageTime'] != null
+                    ? (data['lastMessageTime'] is Timestamp
+                        ? (data['lastMessageTime'] as Timestamp).toDate()
+                        : DateTime.parse(data['lastMessageTime']))
+                    : null,
+                unreadCount: data['unreadCount_$userId'] ?? 0,
+                isOnline: data['isOnline_$otherUserId'] ?? false,
+              );
+            }).toList();
+
+            // Update cache
+            _cacheRepository!.cacheChatRooms(chatRooms, userId);
+
+            // Emit updated data
+            controller.add(chatRooms);
+          },
+          onError: (error) {
+            controller.addError(error);
+          },
+        );
+
+        // Handle controller close
+        controller.onCancel = () {
+          subscription.cancel();
+        };
+      }
+
+      // Execute cache-first strategy
+      emitCachedData().then((_) => listenToFirestore());
+
+      return controller.stream;
+    }
+
+    // If no cache, use original implementation
     return _firestore
         .collection('chat_rooms')
         .where('participants', arrayContains: userId)
@@ -187,7 +288,6 @@ class ChatRepository {
         final otherUserId =
             participants.firstWhere((id) => id != userId, orElse: () => '');
 
-        // Get the other user's details from the chat room data using the dynamic field format
         return ChatRoom(
           id: doc.id,
           currentUserId: userId,
@@ -207,8 +307,57 @@ class ChatRepository {
     });
   }
 
-  // Load messages for a specific chat room
+  // Load messages for a specific chat room - with caching
   Stream<List<Message>> getMessages(String chatRoomId) {
+    // If caching is enabled, use a custom stream with cache-first approach
+    if (_cacheRepository != null) {
+      final controller = StreamController<List<Message>>();
+
+      // Immediately emit cached messages
+      Future<void> emitCachedMessages() async {
+        final cachedMessages = _cacheRepository!.getCachedMessages(chatRoomId);
+        if (cachedMessages.isNotEmpty) {
+          controller.add(cachedMessages);
+        }
+      }
+
+      // Then listen to Firestore
+      void listenToFirestore() {
+        final subscription = _firestore
+            .collection('chat_rooms')
+            .doc(chatRoomId)
+            .collection('messages')
+            .orderBy('timestamp', descending: false)
+            .snapshots()
+            .listen(
+          (snapshot) {
+            final messages = snapshot.docs
+                .map((doc) => Message.fromMap(doc.data()))
+                .toList();
+
+            // Update cache
+            _cacheRepository!.cacheMessages(chatRoomId, messages);
+
+            // Emit updated messages
+            controller.add(messages);
+          },
+          onError: (error) {
+            controller.addError(error);
+          },
+        );
+
+        controller.onCancel = () {
+          subscription.cancel();
+        };
+      }
+
+      // Execute strategy
+      emitCachedMessages().then((_) => listenToFirestore());
+
+      return controller.stream;
+    }
+
+    // If no cache, use original implementation
     return _firestore
         .collection('chat_rooms')
         .doc(chatRoomId)
@@ -217,6 +366,24 @@ class ChatRepository {
         .snapshots()
         .map((snapshot) =>
             snapshot.docs.map((doc) => Message.fromMap(doc.data())).toList());
+  }
+
+  // Process pending messages
+  Future<void> processPendingMessages() async {
+    if (_cacheRepository == null) return;
+
+    final pendingMessages = _cacheRepository!.getPendingMessages();
+
+    for (final message in pendingMessages) {
+      try {
+        await sendMessage(message: message);
+
+        // If successful, remove from pending queue
+        await _cacheRepository!.removeFromPendingQueue(message.id);
+      } catch (e) {
+        print('Failed to send pending message: ${e.toString()}');
+      }
+    }
   }
 
   // Mark messages as read
@@ -244,32 +411,51 @@ class ChatRepository {
     );
 
     await batch.commit();
+
+    // Update cache if available
+    if (_cacheRepository != null) {
+      final messages = _cacheRepository!.getCachedMessages(chatRoomId);
+      final updatedMessages = messages.map((msg) {
+        if (msg.receiverId == userId && !msg.isRead) {
+          return msg.copyWith(isRead: true);
+        }
+        return msg;
+      }).toList();
+
+      await _cacheRepository!.cacheMessages(chatRoomId, updatedMessages);
+    }
   }
 
-  // Sort chat rooms
+  // Sort chat rooms - now entirely in memory
   Future<List<ChatRoom>> sortChatRooms(
     List<ChatRoom> chatRooms,
     SortType sortType,
   ) async {
+    final sortedRooms = List<ChatRoom>.from(chatRooms);
+
     switch (sortType) {
       case SortType.name:
-        return chatRooms
-          ..sort((a, b) => a.otherUserName.compareTo(b.otherUserName));
+        sortedRooms.sort((a, b) => a.otherUserName.compareTo(b.otherUserName));
+        break;
       case SortType.recent:
-        return chatRooms
-          ..sort((a, b) {
-            if (a.lastMessageTime == null) return 1;
-            if (b.lastMessageTime == null) return -1;
-            return b.lastMessageTime!.compareTo(a.lastMessageTime!);
-          });
+        sortedRooms.sort((a, b) {
+          if (a.lastMessageTime == null) return 1;
+          if (b.lastMessageTime == null) return -1;
+          return b.lastMessageTime!.compareTo(a.lastMessageTime!);
+        });
+        break;
     }
+
+    return sortedRooms;
   }
 
-  // Filter chat rooms
+  // Filter chat rooms - now entirely in memory
   List<ChatRoom> filterChatRooms(
     List<ChatRoom> chatRooms,
     String query,
   ) {
+    if (query.isEmpty) return chatRooms;
+
     return chatRooms.where((chatRoom) {
       return chatRoom.otherUserName.toLowerCase().contains(query.toLowerCase());
     }).toList();

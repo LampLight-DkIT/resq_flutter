@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -51,6 +52,42 @@ class _SettingsPageState extends State<SettingsPage> {
             trailing: const Icon(Icons.arrow_forward_ios),
             onTap: () {
               // TODO: Navigate to Change Password screen.
+            },
+          ),
+          const Divider(),
+
+          // =========================
+          // Emergency Features Section
+          // =========================
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              "Emergency Features",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          ListTile(
+            leading: Icon(Icons.vibration, color: Colors.red),
+            title: const Text("Shake Detection"),
+            subtitle: const Text(
+                "Configure emergency alerts when you shake your device"),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              // Navigate to shake settings screen
+              context.push('/settings/shake');
+            },
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.location_on, color: Colors.red),
+            title: const Text("Location Sharing in Emergencies"),
+            value: _locationSharing,
+            onChanged: (value) {
+              setState(() {
+                _locationSharing = value;
+              });
             },
           ),
           const Divider(),
@@ -117,16 +154,6 @@ class _SettingsPageState extends State<SettingsPage> {
             trailing: const Icon(Icons.arrow_forward_ios),
             onTap: () {
               // TODO: Navigate to Two-Factor Authentication screen.
-            },
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.location_on),
-            title: const Text("Location Sharing"),
-            value: _locationSharing,
-            onChanged: (value) {
-              setState(() {
-                _locationSharing = value;
-              });
             },
           ),
           const Divider(),

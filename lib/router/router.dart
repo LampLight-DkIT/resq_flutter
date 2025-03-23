@@ -10,7 +10,7 @@ import 'package:resq/features/chats/presentation/chats_page.dart';
 import 'package:resq/features/home/home_page.dart';
 import 'package:resq/features/intro/intro_one.dart';
 import 'package:resq/features/intro/splash_screen.dart';
-import 'package:resq/features/notification/notification_items.dart';
+import 'package:resq/features/notification/notification_page.dart';
 import 'package:resq/features/profile/presentation/profile_page.dart';
 import 'package:resq/features/settings/settings_page.dart';
 import 'package:resq/features/user_discovery/presentation/user_discovery_screen.dart';

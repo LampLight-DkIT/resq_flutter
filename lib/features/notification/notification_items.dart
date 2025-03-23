@@ -11,6 +11,7 @@ class NotificationItem {
   final DateTime timestamp;
   final String type; // 'emergency', 'trigger', 'general', etc.
   final bool isRead;
+  final String direction; // 'incoming', 'outgoing', or 'system'
 
   NotificationItem({
     required this.id,
@@ -19,6 +20,7 @@ class NotificationItem {
     required this.timestamp,
     required this.type,
     this.isRead = false,
+    this.direction = 'system', // Default to system for backward compatibility
   });
 
   Map<String, dynamic> toMap() {
@@ -29,10 +31,20 @@ class NotificationItem {
       'timestamp': timestamp.millisecondsSinceEpoch,
       'type': type,
       'isRead': isRead,
+      'direction': direction.toLowerCase(), // Ensure lowercase for consistency
     };
   }
 
   factory NotificationItem.fromMap(Map<String, dynamic> map) {
+    final direction = (map['direction'] ?? 'system').toString().toLowerCase();
+
+    // Debug for troubleshooting
+    if (direction == 'incoming') {
+      print('DEBUG: Found an incoming notification: ${map['title']}');
+    } else if (direction == 'outgoing') {
+      print('DEBUG: Found an outgoing notification: ${map['title']}');
+    }
+
     return NotificationItem(
       id: map['id'] ?? '',
       title: map['title'] ?? '',
@@ -40,6 +52,7 @@ class NotificationItem {
       timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp']),
       type: map['type'] ?? 'general',
       isRead: map['isRead'] ?? false,
+      direction: direction, // Already lowercased
     );
   }
 
@@ -50,6 +63,7 @@ class NotificationItem {
     DateTime? timestamp,
     String? type,
     bool? isRead,
+    String? direction,
   }) {
     return NotificationItem(
       id: id ?? this.id,
@@ -58,6 +72,7 @@ class NotificationItem {
       timestamp: timestamp ?? this.timestamp,
       type: type ?? this.type,
       isRead: isRead ?? this.isRead,
+      direction: direction ?? this.direction,
     );
   }
 }
@@ -73,6 +88,12 @@ class NotificationService {
 
   // Add a notification to storage
   Future<void> addNotification(NotificationItem notification) async {
+    // Debug logging
+    print('Adding new notification:');
+    print('  Title: ${notification.title}');
+    print('  Direction: ${notification.direction}');
+    print('  Type: ${notification.type}');
+
     final prefs = await SharedPreferences.getInstance();
     final notifications = await getNotifications();
 
@@ -83,8 +104,11 @@ class NotificationService {
     notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
     // Store back to shared preferences
-    await prefs.setString(
-        _storageKey, jsonEncode(notifications.map((n) => n.toMap()).toList()));
+    final jsonData = jsonEncode(notifications.map((n) => n.toMap()).toList());
+    await prefs.setString(_storageKey, jsonData);
+
+    // Verify storage
+    print('Stored ${notifications.length} notifications');
   }
 
   // Get all notifications
@@ -93,12 +117,29 @@ class NotificationService {
     final notificationsString = prefs.getString(_storageKey);
 
     if (notificationsString == null || notificationsString.isEmpty) {
+      print('No notifications found in storage');
       return [];
     }
 
     try {
       final List<dynamic> decoded = jsonDecode(notificationsString);
-      return decoded.map((item) => NotificationItem.fromMap(item)).toList();
+      final notificationList =
+          decoded.map((item) => NotificationItem.fromMap(item)).toList();
+
+      // Debug count by direction
+      final incoming =
+          notificationList.where((n) => n.direction == 'incoming').length;
+      final outgoing =
+          notificationList.where((n) => n.direction == 'outgoing').length;
+      final system =
+          notificationList.where((n) => n.direction == 'system').length;
+
+      print('Retrieved ${notificationList.length} notifications:');
+      print('  Incoming: $incoming');
+      print('  Outgoing: $outgoing');
+      print('  System: $system');
+
+      return notificationList;
     } catch (e) {
       print('Error parsing notifications: $e');
       return [];
@@ -138,6 +179,7 @@ class NotificationService {
   Future<void> clearAllNotifications() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_storageKey, jsonEncode([]));
+    print('All notifications cleared');
   }
 
   // Get unread count
@@ -145,131 +187,211 @@ class NotificationService {
     final notifications = await getNotifications();
     return notifications.where((notification) => !notification.isRead).length;
   }
-}
 
-class NotificationPage extends StatefulWidget {
-  const NotificationPage({Key? key}) : super(key: key);
-
-  @override
-  State<NotificationPage> createState() => _NotificationPageState();
-}
-
-class _NotificationPageState extends State<NotificationPage> {
-  List<NotificationItem> _notifications = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadNotifications();
-  }
-
-  Future<void> _loadNotifications() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    final notifications = await NotificationService().getNotifications();
-
-    setState(() {
-      _notifications = notifications;
-      _isLoading = false;
-    });
-
-    // Mark all as read when viewed
-    if (notifications.isNotEmpty) {
-      await NotificationService().markAllAsRead();
+  // Get notifications filtered by direction
+  Future<List<NotificationItem>> getFilteredNotifications(
+      String direction) async {
+    final notifications = await getNotifications();
+    if (direction == 'all') {
+      print('Returning all ${notifications.length} notifications');
+      return notifications;
     }
+
+    final directionLower =
+        direction.toLowerCase(); // Case insensitive comparison
+    final filteredList = notifications
+        .where((notification) =>
+            notification.direction.toLowerCase() == directionLower)
+        .toList();
+
+    print('Filtered $direction notifications: found ${filteredList.length}');
+
+    // If we didn't find any, log a warning
+    if (filteredList.isEmpty) {
+      print('WARNING: No notifications found with direction "$direction"');
+      print(
+          'Available directions: ${notifications.map((n) => n.direction).toSet().join(', ')}');
+    }
+
+    return filteredList;
   }
 
-  /// Clears all notifications after a confirmation.
-  void _clearAllNotifications() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Clear All Notifications"),
-        content:
-            const Text("Are you sure you want to clear all notifications?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () async {
-              await NotificationService().clearAllNotifications();
-              Navigator.of(context).pop();
-              _loadNotifications();
-            },
-            child: const Text("Clear All"),
-          ),
-        ],
-      ),
-    );
+  // Debug method to print notification stats
+  Future<void> debugPrintNotificationStats() async {
+    final notifications = await getNotifications();
+    final incoming =
+        notifications.where((n) => n.direction == 'incoming').length;
+    final outgoing =
+        notifications.where((n) => n.direction == 'outgoing').length;
+    final system = notifications.where((n) => n.direction == 'system').length;
+    final otherDirections = notifications
+        .where((n) => !['incoming', 'outgoing', 'system'].contains(n.direction))
+        .map((n) => n.direction)
+        .toSet();
+
+    print('--- Notification Stats ---');
+    print('Total notifications: ${notifications.length}');
+    print('Incoming notifications: $incoming');
+    print('Outgoing notifications: $outgoing');
+    print('System notifications: $system');
+    if (otherDirections.isNotEmpty) {
+      print('Other directions found: ${otherDirections.join(', ')}');
+    }
+    print('--------------------------');
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Notifications"),
-        titleTextStyle: Theme.of(context).textTheme.bodyLarge!.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-        actions: [
-          // Only show the clear button if there are notifications.
-          if (_notifications.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear_all),
-              tooltip: "Clear All Notifications",
-              onPressed: _clearAllNotifications,
-            ),
-        ],
+  // For debugging - create test notifications
+  Future<void> createTestNotifications() async {
+    // Clear existing notifications first
+    await clearAllNotifications();
+
+    // Create an incoming notification
+    await addNotification(
+      NotificationItem(
+        id: 'test_incoming_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Test Incoming Alert',
+        message: 'This is a test incoming notification',
+        timestamp: DateTime.now(),
+        type: 'emergency',
+        direction: 'incoming',
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _notifications.isEmpty
-              ? const Center(
-                  child: Text(
-                    "No notifications available.",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadNotifications,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(8.0),
-                    itemCount: _notifications.length,
-                    separatorBuilder: (context, index) => const Divider(),
-                    itemBuilder: (context, index) {
-                      final notification = _notifications[index];
-                      return NotificationListItem(notification: notification);
-                    },
-                  ),
-                ),
     );
+
+    // Create an outgoing notification
+    await addNotification(
+      NotificationItem(
+        id: 'test_outgoing_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Test Outgoing Alert',
+        message: 'This is a test outgoing notification',
+        timestamp: DateTime.now(),
+        type: 'emergency',
+        direction: 'outgoing',
+      ),
+    );
+
+    // Create a system notification
+    await addNotification(
+      NotificationItem(
+        id: 'test_system_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Test System Message',
+        message: 'This is a test system notification',
+        timestamp: DateTime.now(),
+        type: 'general',
+        direction: 'system',
+      ),
+    );
+
+    print('Created 3 test notifications (incoming, outgoing, system)');
+  }
+}
+
+// Helper method to format timestamps consistently across the app
+String formatTimestamp(DateTime timestamp) {
+  final now = DateTime.now();
+  final difference = now.difference(timestamp);
+
+  if (difference.inDays > 0) {
+    return DateFormat('MMM d, h:mm a').format(timestamp);
+  } else if (difference.inHours > 0) {
+    return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
+  } else if (difference.inMinutes > 0) {
+    return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
+  } else {
+    return 'Just now';
   }
 }
 
 class NotificationListItem extends StatelessWidget {
   final NotificationItem notification;
+  final Function onTap;
 
-  const NotificationListItem({Key? key, required this.notification})
-      : super(key: key);
+  const NotificationListItem({
+    Key? key,
+    required this.notification,
+    required this.onTap,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    IconData iconData;
+    Color iconColor;
+    Color backgroundColor;
+
+    // Determine icon and color based on notification type and direction
+    if (notification.type == 'emergency') {
+      // Emergency alerts
+      if (notification.direction == 'incoming') {
+        iconData = Icons.emergency;
+        iconColor = Colors.red;
+        backgroundColor = Colors.red.withOpacity(0.2);
+      } else if (notification.direction == 'outgoing') {
+        iconData = Icons.emergency_share;
+        iconColor = Colors.orange;
+        backgroundColor = Colors.orange.withOpacity(0.2);
+      } else {
+        // System emergency notifications
+        iconData = Icons.warning_amber_rounded;
+        iconColor = Colors.red;
+        backgroundColor = Colors.red.withOpacity(0.2);
+      }
+    } else if (notification.type == 'trigger') {
+      // Trigger alerts
+      iconData = Icons.notifications_active;
+      iconColor = Colors.orange;
+      backgroundColor = Colors.orange.withOpacity(0.2);
+    } else {
+      // Default for other notifications
+      iconData = Icons.notifications;
+      iconColor = Colors.blue;
+      backgroundColor = Colors.blue.withOpacity(0.2);
+    }
+
     return Card(
       elevation: 1,
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
-        leading: _getNotificationIcon(),
-        title: Text(
-          notification.title,
-          style: TextStyle(
-            fontWeight:
-                notification.isRead ? FontWeight.normal : FontWeight.bold,
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            shape: BoxShape.circle,
           ),
+          child: Icon(iconData, color: iconColor),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                notification.title,
+                style: TextStyle(
+                  fontWeight:
+                      notification.isRead ? FontWeight.normal : FontWeight.bold,
+                ),
+              ),
+            ),
+            // Add a small badge to indicate direction
+            if (notification.direction == 'incoming' ||
+                notification.direction == 'outgoing')
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: notification.direction == 'incoming'
+                      ? Colors.green.withOpacity(0.2)
+                      : Colors.blue.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  notification.direction == 'incoming' ? 'Received' : 'Sent',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: notification.direction == 'incoming'
+                        ? Colors.green
+                        : Colors.blue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,7 +400,7 @@ class NotificationListItem extends StatelessWidget {
             Text(notification.message),
             const SizedBox(height: 4),
             Text(
-              _formatTimestamp(notification.timestamp),
+              formatTimestamp(notification.timestamp),
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey[600],
@@ -289,54 +411,8 @@ class NotificationListItem extends StatelessWidget {
         ),
         isThreeLine: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        onTap: () => onTap(),
       ),
     );
-  }
-
-  Widget _getNotificationIcon() {
-    switch (notification.type) {
-      case 'emergency':
-        return Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.2),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.warning_amber_rounded, color: Colors.red),
-        );
-      case 'trigger':
-        return Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.2),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.notifications_active, color: Colors.orange),
-        );
-      default:
-        return Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.2),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.notifications, color: Colors.blue),
-        );
-    }
-  }
-
-  String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-
-    if (difference.inDays > 0) {
-      return DateFormat('MMM d, h:mm a').format(timestamp);
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
-    } else {
-      return 'Just now';
-    }
   }
 }

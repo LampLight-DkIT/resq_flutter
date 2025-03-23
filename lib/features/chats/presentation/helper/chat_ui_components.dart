@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:resq/features/add_contact_page/model/emergency_contact_model.dart';
 import 'package:resq/features/chats/models/message_model.dart';
 import 'package:resq/widget/widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Class containing reusable UI components for the chat interface
 class ChatUIComponents {
@@ -12,6 +13,7 @@ class ChatUIComponents {
     required EmergencyContact contact,
     required VoidCallback onEmergencyPressed,
   }) {
+    // No changes to appbar
     return AppBar(
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
@@ -49,7 +51,9 @@ class ChatUIComponents {
       actions: [
         if (contact.isFollowing)
           IconButton(
-            icon: const Icon(Icons.warning_amber_outlined, color: Colors.red),
+            icon: const Icon(
+              Icons.info_outline,
+            ),
             onPressed: onEmergencyPressed,
           ),
       ],
@@ -82,7 +86,44 @@ class ChatUIComponents {
         Flexible(
           child: Container(
             margin: const EdgeInsets.only(bottom: 8.0),
-            child: _getMessageContent(message, isCurrentUser),
+            child: FutureBuilder<String?>(
+              future: _getTriggerPhrase(),
+              builder: (context, snapshot) {
+                // While loading, show a basic message
+                if (!snapshot.hasData) {
+                  return _buildBasicMessageBubble(message, isCurrentUser);
+                }
+
+                // Check if this is a trigger phrase - only do special handling for current user
+                final triggerPhrase = snapshot.data;
+                if (isCurrentUser &&
+                    triggerPhrase != null &&
+                    message.content.trim().toLowerCase() ==
+                        triggerPhrase.toLowerCase()) {
+                  // Very subtle indication for the sender only - a slightly different shade
+                  return _buildSubtleTriggerBubble(message, isCurrentUser);
+                }
+
+                // For others or non-trigger messages, just use the standard bubble
+                switch (message.type) {
+                  case MessageType.image:
+                    return ImageMessageBubble(
+                        message: message, isCurrentUser: isCurrentUser);
+                  case MessageType.document:
+                    return DocumentMessageBubble(
+                        message: message, isCurrentUser: isCurrentUser);
+                  case MessageType.audio:
+                    return AudioMessageBubble(
+                        message: message, isCurrentUser: isCurrentUser);
+                  case MessageType.location:
+                    return LocationMessageBubble(
+                        message: message, isCurrentUser: isCurrentUser);
+                  default:
+                    // Default case: text and emergency messages
+                    return _buildBasicMessageBubble(message, isCurrentUser);
+                }
+              },
+            ),
           ),
         ),
         if (isCurrentUser)
@@ -95,30 +136,14 @@ class ChatUIComponents {
     );
   }
 
-  // Get appropriate message content widget based on type
-  static Widget _getMessageContent(Message message, bool isCurrentUser) {
-    // Handle different message types with their custom widgets
-    switch (message.type) {
-      case MessageType.image:
-        return ImageMessageBubble(
-            message: message, isCurrentUser: isCurrentUser);
-      case MessageType.document:
-        return DocumentMessageBubble(
-            message: message, isCurrentUser: isCurrentUser);
-      case MessageType.audio:
-        return AudioMessageBubble(
-            message: message, isCurrentUser: isCurrentUser);
-      case MessageType.location:
-        return LocationMessageBubble(
-            message: message, isCurrentUser: isCurrentUser);
-      default:
-        // Default case: text and emergency messages
-        return _buildTextMessageBubble(message, isCurrentUser);
-    }
+  // Helper method to get the trigger phrase from SharedPreferences
+  static Future<String?> _getTriggerPhrase() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('alert_trigger_phrase');
   }
 
-  // Build text message bubble
-  static Widget _buildTextMessageBubble(Message message, bool isCurrentUser) {
+// Build a basic message bubble (for text and emergency messages)
+  static Widget _buildBasicMessageBubble(Message message, bool isCurrentUser) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
       decoration: BoxDecoration(
@@ -134,13 +159,15 @@ class ChatUIComponents {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Display the message content
           Text(
             message.content,
             style: TextStyle(
                 color: isCurrentUser ? Colors.blue[900] : Colors.black87,
                 fontSize: 15),
           ),
-          if (message.type == MessageType.emergency)
+          // Show emergency indicator if needed
+          if (message.type == MessageType.emergency && isCurrentUser)
             Container(
               margin: const EdgeInsets.only(top: 4),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -165,13 +192,57 @@ class ChatUIComponents {
     );
   }
 
+// Special bubble for trigger phrase messages
+  // Special subtle trigger bubble - just with a small line under the message
+  static Widget _buildSubtleTriggerBubble(Message message, bool isCurrentUser) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      decoration: BoxDecoration(
+        // Use standard bubble color - looks exactly like normal messages
+        color: isCurrentUser ? Colors.blue.shade100 : Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(20.0),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 2,
+              offset: const Offset(0, 1))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Normal message text
+          Text(
+            message.content,
+            style: TextStyle(
+              color: isCurrentUser ? Colors.blue[900] : Colors.black87,
+              fontSize: 15,
+            ),
+          ),
+          // Just a simple red line under the message
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            height: 2, // Very thin line
+            width: 25, // Medium length line
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Rest of the methods stay the same...
+
   // Build message input bar
   static Widget buildMessageInputBar({
     required BuildContext context,
     required TextEditingController messageController,
     required Function() onSendPressed,
     required Function() onAttachmentPressed,
-    FocusNode? focusNode, // Added focus node parameter
+    FocusNode? focusNode,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),

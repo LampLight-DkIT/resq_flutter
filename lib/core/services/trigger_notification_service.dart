@@ -3,7 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:resq/features/notification/notification_items.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Service to handle trigger notifications
+/// Service to handle trigger notifications and emergency alerts
 class TriggerNotificationService {
   static final TriggerNotificationService _instance =
       TriggerNotificationService._internal();
@@ -104,6 +104,7 @@ class TriggerNotificationService {
         timestamp: DateTime.now(),
         type: 'trigger',
         isRead: false,
+        direction: 'system', // System notification
       ),
     );
 
@@ -152,16 +153,24 @@ class TriggerNotificationService {
         timestamp: DateTime.now(),
         type: 'general',
         isRead: false,
+        direction: 'system', // System notification
       ),
     );
   }
 
-  // Store emergency alert notification
+  // Store emergency alert notification with direction
   Future<void> storeEmergencyAlert({
     required String title,
     required String message,
     String type = 'emergency',
+    required String direction, // 'incoming', 'outgoing', or 'system'
   }) async {
+    // Debug direction
+    debugPrint('Creating emergency alert with direction: $direction');
+
+    // Normalize direction to lowercase for consistency
+    final normalizedDirection = direction.toLowerCase();
+
     // Store in NotificationService for viewing in the app
     await NotificationService().addNotification(
       NotificationItem(
@@ -171,10 +180,54 @@ class TriggerNotificationService {
         timestamp: DateTime.now(),
         type: type,
         isRead: false,
+        direction: normalizedDirection,
       ),
     );
 
-    debugPrint('Emergency alert stored in notifications: $title');
+    debugPrint(
+        'Emergency alert stored in notifications: $title (direction: $normalizedDirection)');
+  }
+
+  // Store outgoing emergency alert
+  Future<void> storeOutgoingEmergencyAlert({
+    required String contactName,
+    String? additionalInfo,
+  }) async {
+    String message = 'You sent an emergency alert to $contactName';
+    if (additionalInfo != null && additionalInfo.isNotEmpty) {
+      message += '\n$additionalInfo';
+    }
+
+    debugPrint('Creating outgoing emergency alert for $contactName');
+    await storeEmergencyAlert(
+      title: 'Emergency Alert Sent',
+      message: message,
+      direction: 'outgoing',
+    );
+
+    // Verify notification was saved
+    await NotificationService().debugPrintNotificationStats();
+  }
+
+  // Store incoming emergency alert
+  Future<void> storeIncomingEmergencyAlert({
+    required String contactName,
+    String? additionalInfo,
+  }) async {
+    String message = 'You received an emergency alert from $contactName';
+    if (additionalInfo != null && additionalInfo.isNotEmpty) {
+      message += '\n$additionalInfo';
+    }
+
+    debugPrint('Creating incoming emergency alert from $contactName');
+    await storeEmergencyAlert(
+      title: 'Emergency Alert Received',
+      message: message,
+      direction: 'incoming',
+    );
+
+    // Verify notification was saved
+    await NotificationService().debugPrintNotificationStats();
   }
 
   // Get the current trigger phrase
@@ -187,6 +240,7 @@ class TriggerNotificationService {
   Future<void> showEmergencyNotification({
     required String title,
     required String message,
+    required String direction,
   }) async {
     if (!_isInitialized) {
       await initialize();
@@ -227,7 +281,64 @@ class TriggerNotificationService {
       payload: 'emergency_notification',
     );
 
+    // Ensure direction is lowercase for consistency
+    final normalizedDirection = direction.toLowerCase();
+    debugPrint(
+        'Showing emergency notification with direction: $normalizedDirection');
+
     // Also store in the app's notification system
-    await storeEmergencyAlert(title: title, message: message);
+    await storeEmergencyAlert(
+      title: title,
+      message: message,
+      direction: normalizedDirection,
+    );
+  }
+
+  // Show incoming emergency alert (combined notification and storage)
+  Future<void> handleIncomingEmergencyAlert({
+    required String contactName,
+    String? additionalInfo,
+    String? location,
+  }) async {
+    String message = 'You received an emergency alert from $contactName';
+    if (location != null && location.isNotEmpty) {
+      message += '\nLocation: $location';
+    }
+    if (additionalInfo != null && additionalInfo.isNotEmpty) {
+      message += '\n$additionalInfo';
+    }
+
+    debugPrint('Handling incoming emergency alert from $contactName');
+
+    // Show system notification
+    await showEmergencyNotification(
+      title: 'EMERGENCY: Alert from $contactName',
+      message: message,
+      direction: 'incoming',
+    );
+  }
+
+  // Show outgoing emergency alert (combined notification and storage)
+  Future<void> handleOutgoingEmergencyAlert({
+    required String contactName,
+    String? additionalInfo,
+    String? location,
+  }) async {
+    String message = 'You sent an emergency alert to $contactName';
+    if (location != null && location.isNotEmpty) {
+      message += '\nLocation shared: $location';
+    }
+    if (additionalInfo != null && additionalInfo.isNotEmpty) {
+      message += '\n$additionalInfo';
+    }
+
+    debugPrint('Handling outgoing emergency alert to $contactName');
+
+    // Show system notification
+    await showEmergencyNotification(
+      title: 'Emergency Alert Sent',
+      message: message,
+      direction: 'outgoing',
+    );
   }
 }

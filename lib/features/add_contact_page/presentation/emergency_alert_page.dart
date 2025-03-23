@@ -462,16 +462,27 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
               backgroundColor: Colors.green,
             ),
           );
+
+          // Store the outgoing emergency alert notification with proper direction
+          String locationInfo = '';
+          if (_includeLocation && _currentPosition != null) {
+            locationInfo =
+                "https://maps.google.com/?q=${_currentPosition!.latitude},${_currentPosition!.longitude}";
+          }
+
+          // Use the handleOutgoingEmergencyAlert method instead of storeEmergencyAlert
+          await TriggerNotificationService().handleOutgoingEmergencyAlert(
+            contactName: widget.contact.name,
+            additionalInfo: _messageController.text.trim(),
+            location: _includeLocation && _currentPosition != null
+                ? locationInfo
+                : null,
+          );
+
           // Add a slight delay before navigating to ensure UI updates
           await Future.delayed(const Duration(milliseconds: 300));
           Navigator.pop(context);
         }
-
-        await TriggerNotificationService().storeEmergencyAlert(
-          title: 'Emergency Alert Sent',
-          message:
-              'You sent an emergency alert to ${widget.contact.name}: $message',
-        );
       } catch (e) {
         // Handle any errors from the completer
         handleError(e.toString());

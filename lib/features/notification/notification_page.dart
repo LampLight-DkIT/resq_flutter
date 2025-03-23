@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter/services.dart'; // Added for method channel
+import 'package:resq/core/services/emergency_alert_listener.dart'; // Add this import
 import 'package:resq/features/notification/notification_items.dart';
 
 class NotificationPage extends StatefulWidget {
@@ -11,7 +12,14 @@ class NotificationPage extends StatefulWidget {
 
 class _NotificationPageState extends State<NotificationPage> {
   List<NotificationItem> _notifications = [];
+  List<NotificationItem> _filteredNotifications = [];
   bool _isLoading = true;
+  bool _hasDebugMode = false; // Set to true only for debugging
+  int _tapCount = 0;
+  DateTime? _lastTapTime;
+
+  // Filter options
+  String _currentFilter = 'all'; // 'all', 'incoming', 'outgoing'
 
   @override
   void initState() {
@@ -24,17 +32,58 @@ class _NotificationPageState extends State<NotificationPage> {
       _isLoading = true;
     });
 
-    final notifications = await NotificationService().getNotifications();
+    final notificationService = NotificationService();
+
+    // Print debug info about current notifications
+    await notificationService.debugPrintNotificationStats();
+
+    // For testing only - uncomment to create test notifications
+    // if (_hasDebugMode) {
+    //   await notificationService.createTestNotifications();
+    // }
+
+    // Load all notifications
+    final notifications = await notificationService.getNotifications();
 
     setState(() {
       _notifications = notifications;
+      _applyFilter(); // Apply current filter
       _isLoading = false;
     });
+  }
 
-    // Mark all as read when viewed
-    if (notifications.isNotEmpty) {
-      await NotificationService().markAllAsRead();
+  // Apply the selected filter
+  void _applyFilter() {
+    if (_currentFilter == 'all') {
+      _filteredNotifications = List.from(_notifications);
+    } else {
+      // Case-insensitive filtering
+      _filteredNotifications = _notifications
+          .where((notification) =>
+              notification.direction.toLowerCase() ==
+              _currentFilter.toLowerCase())
+          .toList();
     }
+
+    // Debug print
+    print('Applied filter: $_currentFilter');
+    print('Filtered notifications count: ${_filteredNotifications.length}');
+
+    // Print details if the count is unexpected
+    if (_filteredNotifications.isEmpty && _notifications.isNotEmpty) {
+      print('WARNING: Filter $_currentFilter returned no results!');
+      print(
+          'Available directions: ${_notifications.map((n) => n.direction).toSet().join(', ')}');
+    }
+  }
+
+  // Change the current filter
+  void _changeFilter(String filter) {
+    print('Changing filter from $_currentFilter to $filter');
+    setState(() {
+      _currentFilter = filter;
+      _applyFilter();
+    });
   }
 
   /// Clears all notifications after a confirmation.
@@ -63,11 +112,70 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
+  // Secret debug method - quickly tap the app title 5 times to create a test incoming notification
+  void _handleTitleTap() {
+    final now = DateTime.now();
+
+    // Reset counter if it's been more than 3 seconds since last tap
+    if (_lastTapTime != null && now.difference(_lastTapTime!).inSeconds > 3) {
+      _tapCount = 0;
+    }
+
+    _lastTapTime = now;
+    _tapCount++;
+
+    // After 5 quick taps, create a test notification
+    if (_tapCount >= 5) {
+      _tapCount = 0;
+      _createTestIncomingNotification();
+      HapticFeedback.heavyImpact(); // Add haptic feedback to confirm
+    }
+  }
+
+  // Create a test incoming notification for debugging
+  Future<void> _createTestIncomingNotification() async {
+    try {
+      print("Creating test incoming notification...");
+
+      // Two ways to create a test notification:
+
+      // 1. Using EmergencyAlertListener (preferred)
+      await EmergencyAlertListener().createTestIncomingAlert();
+
+      // 2. Directly creating a notification (backup method)
+      // await NotificationService().addNotification(
+      //   NotificationItem(
+      //     id: 'test_incoming_${DateTime.now().millisecondsSinceEpoch}',
+      //     title: 'Emergency Alert Received',
+      //     message: 'You received an emergency alert from Test Contact',
+      //     timestamp: DateTime.now(),
+      //     type: 'emergency',
+      //     direction: 'incoming',
+      //   ),
+      // );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Test notification created'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      // Refresh notifications
+      _loadNotifications();
+    } catch (e) {
+      print("Error creating test notification: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Notifications"),
+        title: GestureDetector(
+          onTap: _handleTitleTap,
+          child: const Text("Notifications"),
+        ),
         titleTextStyle: Theme.of(context).textTheme.bodyLarge!.copyWith(
               fontWeight: FontWeight.w700,
             ),
@@ -81,100 +189,85 @@ class _NotificationPageState extends State<NotificationPage> {
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _notifications.isEmpty
-              ? const Center(
-                  child: Text(
-                    "No notifications available.",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadNotifications,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(8.0),
-                    itemCount: _notifications.length,
-                    separatorBuilder: (context, index) => const Divider(),
-                    itemBuilder: (context, index) {
-                      final notification = _notifications[index];
-                      return _buildNotificationItem(notification);
-                    },
-                  ),
-                ),
-    );
-  }
-
-  Widget _buildNotificationItem(NotificationItem notification) {
-    IconData iconData;
-    Color iconColor;
-
-    // Determine icon and color based on notification type
-    switch (notification.type) {
-      case 'emergency':
-        iconData = Icons.warning_amber_rounded;
-        iconColor = Colors.red;
-        break;
-      case 'trigger':
-        iconData = Icons.notifications_active;
-        iconColor = Colors.orange;
-        break;
-      default:
-        iconData = Icons.notifications;
-        iconColor = Colors.blue;
-    }
-
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: iconColor.withOpacity(0.2),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(iconData, color: iconColor),
-      ),
-      title: Text(
-        notification.title,
-        style: TextStyle(
-          fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
-        ),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Column(
         children: [
-          Text(notification.message),
-          const SizedBox(height: 4),
-          Text(
-            _formatTimestamp(notification.timestamp),
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontStyle: FontStyle.italic,
+          // Filter buttons
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _filterButton('All', 'all'),
+                _filterButton('Incoming', 'incoming'),
+                _filterButton('Outgoing', 'outgoing'),
+                if (_hasDebugMode) _filterButton('System', 'system'),
+              ],
             ),
+          ),
+
+          // Notifications list
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredNotifications.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _notifications.isEmpty
+                                  ? "No notifications available."
+                                  : "No ${_currentFilter.toUpperCase()} notifications available.",
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            // Debug info - only show in debug mode
+                            if (_hasDebugMode && _notifications.isNotEmpty) ...[
+                              const SizedBox(height: 20),
+                              Text(
+                                "Available types: ${_notifications.map((n) => n.direction).toSet().join(', ')}",
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey[600]),
+                              ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadNotifications,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(8.0),
+                          itemCount: _filteredNotifications.length,
+                          separatorBuilder: (context, index) => const Divider(),
+                          itemBuilder: (context, index) {
+                            final notification = _filteredNotifications[index];
+                            return NotificationListItem(
+                              notification: notification,
+                              onTap: () async {
+                                // Mark this notification as read when tapped
+                                await NotificationService()
+                                    .markAsRead(notification.id);
+                                _loadNotifications(); // Refresh the list
+                              },
+                            );
+                          },
+                        ),
+                      ),
           ),
         ],
       ),
-      isThreeLine: true,
-      onTap: () async {
-        // Mark this notification as read when tapped
-        await NotificationService().markAsRead(notification.id);
-        _loadNotifications(); // Refresh the list
-      },
     );
   }
 
-  String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
+  Widget _filterButton(String label, String filter) {
+    bool isSelected = _currentFilter == filter;
 
-    if (difference.inDays > 0) {
-      return DateFormat('MMM d, h:mm a').format(timestamp);
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} ${difference.inHours == 1 ? 'hour' : 'hours'} ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} ${difference.inMinutes == 1 ? 'minute' : 'minutes'} ago';
-    } else {
-      return 'Just now';
-    }
+    return ElevatedButton(
+      onPressed: () => _changeFilter(filter),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected ? Theme.of(context).primaryColor : null,
+        foregroundColor: isSelected ? Colors.white : null,
+      ),
+      child: Text(label),
+    );
   }
 }

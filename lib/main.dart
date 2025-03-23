@@ -19,6 +19,7 @@ import 'package:resq/firebase_options.dart';
 import 'package:resq/router/router.dart';
 
 import 'constants/constants.dart';
+import 'core/services/emergency_alert_listener.dart';
 import 'core/services/trigger_notification_service.dart';
 
 void main() async {
@@ -32,6 +33,8 @@ void main() async {
 
   // Initialize the notification service
   await TriggerNotificationService().initialize();
+
+  await EmergencyAlertListener().initialize();
 
   // First, initialize the AppInitializationService properly
   final appInitService = AppInitializationService();

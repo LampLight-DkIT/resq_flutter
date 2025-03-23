@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resq/constants/constants.dart';
+import 'package:resq/features/auth/bloc/auth_bloc.dart';
+import 'package:resq/features/auth/bloc/auth_state.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -37,12 +40,25 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward(); // Start animation
 
-    // Navigate to Home Screen after Animation Completes
+    // Navigate based on auth state after animation completes
     Future.delayed(const Duration(milliseconds: 1800), () {
       if (mounted) {
-        context.go("/intro");
+        _navigateBasedOnAuthState();
       }
     });
+  }
+
+  void _navigateBasedOnAuthState() {
+    // Get the current auth state from the BLoC
+    final authState = context.read<AuthBloc>().state;
+
+    if (authState is AuthAuthenticated) {
+      // If authenticated, go to home
+      context.go("/home");
+    } else {
+      // If not authenticated, go to intro
+      context.go("/intro");
+    }
   }
 
   @override

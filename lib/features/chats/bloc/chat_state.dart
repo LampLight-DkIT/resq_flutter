@@ -70,6 +70,16 @@ class MessageSent extends ChatState {
   List<Object?> get props => [message];
 }
 
+// Add this new state for real-time message reception
+class MessageReceived extends ChatState {
+  final Message message;
+
+  const MessageReceived(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
 class EmergencyMessageSent extends ChatState {
   final Message message;
   final String? location;

@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:resq/core/services/app_initialization_service.dart';
 import 'package:resq/features/chats/bloc/chat_event.dart';
 import 'package:resq/features/chats/bloc/chat_state.dart';
 import 'package:resq/features/chats/models/chat_room_model.dart';
@@ -23,16 +24,18 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   // Subscriptions
   StreamSubscription? _chatRoomsSubscription;
-  StreamSubscription? _messagesSubscription;
+  Map<String, StreamSubscription> _messageSubscriptions = {};
   StreamSubscription? _connectivitySubscription;
 
   // Flags for operation tracking
-  bool _hasActiveChatRoomSubscription = false;
   bool _isFetchingChatRooms = false;
-  bool _isFetchingMessages = false;
+  Map<String, bool> _isFetchingMessages = {};
 
   // Debounce timers
   Timer? _loadDebounce;
+
+  // Initialization service
+  final AppInitializationService _initService = AppInitializationService();
 
   ChatBloc({
     required ChatRepository repository,
@@ -53,8 +56,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<SendMessage>(_onSendMessage);
     on<SendEmergencyMessage>(_onSendEmergencyMessage);
     on<MarkMessagesAsRead>(_onMarkMessagesAsRead);
-
-    // New Event
+    on<NewMessageReceived>(_onNewMessageReceived);
+    on<NewMessagesLoaded>(_onNewMessagesLoaded);
+    on<MessageStreamError>(_onMessageStreamError);
     on<ProcessPendingMessages>(_onProcessPendingMessages);
 
     // Listen for connectivity changes
@@ -70,69 +74,50 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   @override
   Future<void> close() {
     _chatRoomsSubscription?.cancel();
-    _messagesSubscription?.cancel();
+    // Cancel all message subscriptions
+    for (var subscription in _messageSubscriptions.values) {
+      subscription.cancel();
+    }
+    _messageSubscriptions.clear();
     _connectivitySubscription?.cancel();
     _loadDebounce?.cancel();
-    _hasActiveChatRoomSubscription = false;
     return super.close();
   }
 
-  // Chat Room Event Handlers
+  // Improved LoadChatRooms event handler
   Future<void> _onLoadChatRooms(
       LoadChatRooms event, Emitter<ChatState> emit) async {
-    // Cancel any pending load operations if we're rapidly navigating
-    _loadDebounce?.cancel();
-
-    // Prevent parallel fetches
     if (_isFetchingChatRooms) return;
+    _isFetchingChatRooms = true;
 
-    // If we already have chat rooms, emit them immediately for better UX
-    if (_allChatRooms.isNotEmpty) {
-      emit(ChatRoomsLoaded(List<ChatRoom>.from(_allChatRooms)));
-    } else {
-      emit(ChatLoading());
-    }
-
-    // Debounce the actual Firestore fetch
-    _loadDebounce = Timer(const Duration(milliseconds: 300), () async {
-      _isFetchingChatRooms = true;
-
-      try {
-        // Get current user
-        final currentUser = _auth.currentUser;
-        if (currentUser == null) {
-          emit(ChatError('User not logged in'));
-          _isFetchingChatRooms = false;
-          return;
-        }
-
-        // Only create a new subscription if we don't already have one
-        if (!_hasActiveChatRoomSubscription) {
-          await _chatRoomsSubscription?.cancel();
-
-          // Subscribe to chat rooms stream
-          _chatRoomsSubscription =
-              _repository.getChatRooms(currentUser.uid).listen(
-            (chatRooms) {
-              _allChatRooms = chatRooms;
-              add(SortChatRooms(SortType.recent)); // Default sort by recent
-            },
-            onError: (error) {
-              emit(ChatError(error.toString()));
-            },
-          );
-
-          _hasActiveChatRoomSubscription = true;
-        } else if (_allChatRooms.isNotEmpty) {
-          // If we already have data and a subscription, just re-sort
-          add(SortChatRooms(SortType.recent));
-        }
-      } catch (e) {
-        emit(ChatError(e.toString()));
-      } finally {
-        _isFetchingChatRooms = false;
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        emit(ChatError('User not authenticated'));
+        return;
       }
-    });
+
+      emit(ChatLoading());
+
+      // Cancel existing subscription
+      await _chatRoomsSubscription?.cancel();
+
+      // Subscribe to chat rooms stream
+      _chatRoomsSubscription = _repository.getChatRooms(currentUser.uid).listen(
+        (chatRooms) {
+          // Update our cache
+          _allChatRooms = chatRooms;
+          add(SortChatRooms(SortType.recent));
+        },
+        onError: (error) {
+          add(MessageStreamError(error.toString()));
+        },
+      );
+    } catch (e) {
+      emit(ChatError(e.toString()));
+    } finally {
+      _isFetchingChatRooms = false;
+    }
   }
 
   void _onFilterChatRooms(FilterChatRooms event, Emitter<ChatState> emit) {
@@ -160,39 +145,13 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   Future<void> _onDeleteChatRoom(
       DeleteChatRoom event, Emitter<ChatState> emit) async {
-    try {
-      // Store the chat room to be deleted for potential undo
-      final chatRoomToDelete = _allChatRooms.firstWhere(
-        (room) => room.id == event.chatRoomId,
-        orElse: () => throw Exception('Chat room not found'),
-      );
-
-      // Remove from local list immediately for UI update
-      _allChatRooms.removeWhere((room) => room.id == event.chatRoomId);
-
-      // Emit updated list
-      final sortedRooms =
-          await _repository.sortChatRooms(_allChatRooms, SortType.recent);
-      emit(ChatRoomsLoaded(sortedRooms));
-
-      // Attempt to delete from repository
-      // Note: This would need to be implemented in your repository
-      // await _repository.deleteChatRoom(event.chatRoomId);
-
-      // For now, just show error since it's not implemented
-      emit(ChatError('Delete chat room functionality not implemented'));
-
-      // Add the room back to the list since delete failed
-      _allChatRooms.add(chatRoomToDelete);
-    } catch (e) {
-      emit(ChatError(e.toString()));
-    }
+    // Implementation for delete functionality would go here
+    emit(ChatError('Delete chat room functionality not implemented'));
   }
 
   Future<void> _onUndoDeleteChatRoom(
       UndoDeleteChatRoom event, Emitter<ChatState> emit) async {
-    // Note: Your repository doesn't have undoDeleteChatRoom functionality
-    // This would need to be implemented in the repository
+    // Implementation for undo delete functionality would go here
     emit(ChatError('Undo delete chat room functionality not implemented'));
   }
 
@@ -213,71 +172,96 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
   }
 
-  // Message Event Handlers
+  // Improved LoadMessages event handler
   Future<void> _onLoadMessages(
       LoadMessages event, Emitter<ChatState> emit) async {
-    // Prevent parallel fetches
-    if (_isFetchingMessages) return;
-    _isFetchingMessages = true;
+    final chatRoomId = event.chatRoomId;
 
-    emit(ChatLoading());
+    // Prevent parallel fetches for the same chat room
+    if (_isFetchingMessages[chatRoomId] == true) return;
+    _isFetchingMessages[chatRoomId] = true;
 
     try {
-      // Find the chat room
-      final chatRoom = _allChatRooms.firstWhere(
-        (room) => room.id == event.chatRoomId,
-        orElse: () => throw Exception('Chat room not found'),
-      );
-
-      // Immediately serve from cache if available
-      if (_messagesCache.containsKey(event.chatRoomId)) {
-        emit(MessagesLoaded(
-            messages: _messagesCache[event.chatRoomId]!, chatRoom: chatRoom));
+      // Check if chat room exists in our list
+      ChatRoom? chatRoom;
+      try {
+        chatRoom = _allChatRooms.firstWhere(
+          (room) => room.id == chatRoomId,
+        );
+      } catch (_) {
+        // If not found in local cache, try to fetch it
+        chatRoom = await _repository.getChatRoom(chatRoomId);
+        if (chatRoom == null) {
+          throw Exception('Chat room not found');
+        }
       }
 
-      // Cancel previous subscription if any
-      await _messagesSubscription?.cancel();
+      // Immediately serve from cache if available
+      if (_messagesCache.containsKey(chatRoomId)) {
+        emit(MessagesLoaded(
+            messages: _messagesCache[chatRoomId]!, chatRoom: chatRoom));
+      } else {
+        // If no cached messages, show loading state
+        emit(ChatLoading());
+      }
 
-      // Create a completer to properly handle the first emission
-      final completer = Completer<void>();
+      // Cancel previous subscription for this chat room if exists
+      await _messageSubscriptions[chatRoomId]?.cancel();
 
       // Subscribe to messages stream
-      _messagesSubscription = _repository.getMessages(event.chatRoomId).listen(
+      _messageSubscriptions[chatRoomId] =
+          _repository.getMessages(chatRoomId).listen(
         (messages) {
           // Update our memory cache
-          _messagesCache[event.chatRoomId] = messages;
+          _messagesCache[chatRoomId] = messages;
 
-          if (!completer.isCompleted) {
-            emit(MessagesLoaded(messages: messages, chatRoom: chatRoom));
-            completer.complete();
-          } else if (!emit.isDone) {
-            // Only emit if the handler hasn't completed
-            emit(MessagesLoaded(messages: messages, chatRoom: chatRoom));
+          // Emit the loaded state with the new messages
+          add(NewMessagesLoaded(messages, chatRoom!));
+
+          // Check for new messages that weren't in our previous cache
+          final currentUser = _auth.currentUser;
+          if (currentUser != null) {
+            // Find messages received by current user that are unread
+            final unreadMessages = messages
+                .where(
+                    (msg) => msg.receiverId == currentUser.uid && !msg.isRead)
+                .toList();
+
+            if (unreadMessages.isNotEmpty) {
+              // Mark messages as read
+              add(MarkMessagesAsRead(chatRoomId, currentUser.uid));
+
+              // Emit individual MessageReceived events for new messages
+              for (final newMsg in unreadMessages) {
+                add(NewMessageReceived(newMsg));
+              }
+            }
           }
         },
         onError: (error) {
-          if (!completer.isCompleted) {
-            emit(ChatError(error.toString()));
-            completer.complete();
-          }
+          add(MessageStreamError(error.toString()));
         },
       );
-
-      // Wait for first emission
-      await completer.future;
-
-      // Mark messages as read after we have loaded them
-      if (chatRoom.unreadCount > 0) {
-        final currentUser = _auth.currentUser;
-        if (currentUser != null) {
-          add(MarkMessagesAsRead(event.chatRoomId, currentUser.uid));
-        }
-      }
     } catch (e) {
       emit(ChatError(e.toString()));
     } finally {
-      _isFetchingMessages = false;
+      _isFetchingMessages[chatRoomId] = false;
     }
+  }
+
+  // Handlers for message events
+  void _onNewMessagesLoaded(NewMessagesLoaded event, Emitter<ChatState> emit) {
+    emit(MessagesLoaded(messages: event.messages, chatRoom: event.chatRoom));
+  }
+
+  void _onMessageStreamError(
+      MessageStreamError event, Emitter<ChatState> emit) {
+    emit(ChatError(event.error));
+  }
+
+  void _onNewMessageReceived(
+      NewMessageReceived event, Emitter<ChatState> emit) {
+    emit(MessageReceived(event.message));
   }
 
   Future<void> _onSendMessage(
@@ -287,6 +271,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       final connectivityResult = await _connectivity.checkConnectivity();
       final isOffline = connectivityResult == ConnectivityResult.none;
 
+      // Send message
       final message = await _repository.sendMessage(
         message: event.message,
         isOffline: isOffline,
@@ -295,7 +280,27 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       // Update local cache for instant UI feedback
       final chatRoomId = message.chatRoomId;
       if (_messagesCache.containsKey(chatRoomId)) {
-        _messagesCache[chatRoomId] = [..._messagesCache[chatRoomId]!, message];
+        final updatedMessages = [..._messagesCache[chatRoomId]!];
+
+        // Remove any temporary version of this message (for optimistic UI)
+        updatedMessages.removeWhere((m) =>
+            m.id.contains('temp_') &&
+            m.content == message.content &&
+            m.timestamp.difference(message.timestamp).inSeconds.abs() < 5);
+
+        // Add the confirmed message
+        updatedMessages.add(message);
+        _messagesCache[chatRoomId] = updatedMessages;
+      }
+
+      // Check if we need to update the chat room's last message
+      final chatRoomIndex =
+          _allChatRooms.indexWhere((room) => room.id == chatRoomId);
+      if (chatRoomIndex >= 0) {
+        _allChatRooms[chatRoomIndex] = _allChatRooms[chatRoomIndex].copyWith(
+          lastMessage: message.content,
+          lastMessageTime: message.timestamp,
+        );
       }
 
       // Emit success state
@@ -313,11 +318,11 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
   }
 
+  // In chat_bloc.dart, update _onSendEmergencyMessage
   Future<void> _onSendEmergencyMessage(
       SendEmergencyMessage event, Emitter<ChatState> emit) async {
     try {
       // For emergency messages, always try to send regardless of connectivity
-      // (if offline, it will be queued)
       final message = await _repository.sendMessage(
         message: event.message,
         location: event.location,
@@ -329,6 +334,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         _messagesCache[chatRoomId] = [..._messagesCache[chatRoomId]!, message];
       }
 
+      // Emit message sent state first to ensure UI updates
+      emit(MessageSent(message));
+
+      // Then emit emergency-specific state
       emit(EmergencyMessageSent(message: message, location: event.location));
 
       // Check if we're offline
@@ -358,21 +367,20 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       }
 
       // Update messages in cache to mark them as read
-      // Update messages in cache to mark them as read
-      // Update messages in cache to mark them as read
       if (_messagesCache.containsKey(event.chatRoomId)) {
         _messagesCache[event.chatRoomId] = _messagesCache[event.chatRoomId]!
             .map((msg) => msg.receiverId == event.userId && !msg.isRead
                 ? msg.copyWith(isRead: true)
                 : msg)
-            .toList() as List<Message>;
+            .toList();
       }
     } catch (e) {
-      emit(ChatError(e.toString()));
+      // Don't emit error for marking as read - just log it
+      print('Error marking messages as read: ${e.toString()}');
     }
   }
 
-  // New Event Handler
+  // Process pending messages with better error handling
   Future<void> _onProcessPendingMessages(
       ProcessPendingMessages event, Emitter<ChatState> emit) async {
     try {

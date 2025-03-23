@@ -3,10 +3,13 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:resq/core/services/app_initialization_service.dart';
 import 'package:resq/features/chats/bloc/chat_event.dart';
 import 'package:resq/features/chats/models/chat_room_model.dart';
 import 'package:resq/features/chats/models/message_model.dart';
 import 'package:resq/offline/chat_cache/chat_cache_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ChatRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -14,7 +17,8 @@ class ChatRepository {
   final ChatCacheRepository? _cacheRepository;
 
   ChatRepository({ChatCacheRepository? cacheRepository})
-      : _cacheRepository = cacheRepository;
+      : _cacheRepository =
+            cacheRepository ?? AppInitializationService().chatCacheRepository;
 
   // Create or get existing chat room
   Future<ChatRoom> createChatRoom({
@@ -104,11 +108,24 @@ class ChatRepository {
     String? location,
     bool isOffline = false,
   }) async {
+    // Check if this message matches the trigger phrase
+    bool isTrigger = await _checkTriggerPhrase(message);
+    Message messageToSend = message;
+
+    // If it's a trigger, convert to emergency message
+    if (isTrigger) {
+      messageToSend = message.copyWith(type: MessageType.emergency);
+      // For trigger phrases, get location if needed
+      if (location == null) {
+        location = await _getEmergencyLocation();
+      }
+    }
+
     // Create a copy with a temporary ID if needed
-    final String tempId = message.id.isEmpty
+    final String tempId = messageToSend.id.isEmpty
         ? 'temp_${DateTime.now().millisecondsSinceEpoch}'
-        : message.id;
-    final localMessage = message.copyWith(id: tempId);
+        : messageToSend.id;
+    final localMessage = messageToSend.copyWith(id: tempId);
 
     // Handle optimistic UI updates with cache if available
     if (_cacheRepository != null) {
@@ -125,7 +142,7 @@ class ChatRepository {
       // Real Firestore operation
       final messageRef = _firestore
           .collection('chat_rooms')
-          .doc(message.chatRoomId)
+          .doc(messageToSend.chatRoomId)
           .collection('messages')
           .doc();
 
@@ -134,14 +151,17 @@ class ChatRepository {
       await messageRef.set(messageWithId.toMap());
 
       // Update last message in chat room
-      await _firestore.collection('chat_rooms').doc(message.chatRoomId).update({
-        'lastMessage': message.content,
-        'lastMessageTime': message.timestamp.toIso8601String(),
-        'unreadCount_${message.receiverId}': FieldValue.increment(1),
+      await _firestore
+          .collection('chat_rooms')
+          .doc(messageToSend.chatRoomId)
+          .update({
+        'lastMessage': messageToSend.content,
+        'lastMessageTime': messageToSend.timestamp.toIso8601String(),
+        'unreadCount_${messageToSend.receiverId}': FieldValue.increment(1),
       });
 
       // Send emergency notification if it's an emergency message
-      if (message.type == MessageType.emergency) {
+      if (messageToSend.type == MessageType.emergency) {
         await _sendEmergencyNotification(messageWithId, location: location);
       }
 
@@ -154,6 +174,23 @@ class ChatRepository {
     } catch (e) {
       // Keep optimistic message in cache on error
       return localMessage;
+    }
+  }
+
+  Future<String?> _getEmergencyLocation() async {
+    try {
+      // This would typically integrate with your existing location service
+      // Using same approach as in your other emergency methods
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 5),
+        ),
+      );
+      return '${position.latitude},${position.longitude}';
+    } catch (e) {
+      print('Could not get location for trigger alert: $e');
+      return null;
     }
   }
 
@@ -459,5 +496,54 @@ class ChatRepository {
     return chatRooms.where((chatRoom) {
       return chatRoom.otherUserName.toLowerCase().contains(query.toLowerCase());
     }).toList();
+  }
+
+  Future<ChatRoom?> getChatRoom(String chatRoomId) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('chatRooms')
+          .doc(chatRoomId)
+          .get();
+
+      if (snapshot.exists && snapshot.data() != null) {
+        return ChatRoom.fromMap(snapshot.data()!, snapshot.id);
+      }
+
+      return null;
+    } catch (e) {
+      print('Error getting chat room: $e');
+      return null;
+    }
+  }
+
+  // Add this method to your existing ChatRepository class
+  Future<bool> _checkTriggerPhrase(Message message) async {
+    try {
+      // Don't check if it's already an emergency message
+      if (message.type == MessageType.emergency) {
+        return false;
+      }
+
+      // Don't check triggers for messages not sent by the current user
+      final currentUser = _auth.currentUser;
+      if (currentUser == null || message.senderId != currentUser.uid) {
+        return false;
+      }
+
+      // Get the trigger phrase from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final triggerPhrase = prefs.getString('alert_trigger_phrase');
+
+      // If no trigger phrase is set, or it doesn't match, return false
+      if (triggerPhrase == null || triggerPhrase.isEmpty) {
+        return false;
+      }
+
+      // Check if the message content matches the trigger phrase exactly
+      return message.content.trim() == triggerPhrase.trim();
+    } catch (e) {
+      print('Error checking trigger phrase: $e');
+      return false;
+    }
   }
 }

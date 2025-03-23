@@ -161,6 +161,7 @@ class AudioRecordingDialog extends StatefulWidget {
   const AudioRecordingDialog({
     Key? key,
     required this.onComplete,
+    required Null Function() onCancel,
   }) : super(key: key);
 
   @override

@@ -47,6 +47,7 @@ dependencies:
   just_audio: ^0.9.46
   cached_network_image: ^3.4.1
   geocoding: ^3.0.0
+  flutter_local_notifications: ^19.0.0
 
 dev_dependencies:
   flutter_test:

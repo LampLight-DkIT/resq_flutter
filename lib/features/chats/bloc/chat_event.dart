@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:resq/features/chats/models/chat_room_model.dart';
 import 'package:resq/features/chats/models/message_model.dart';
 
 abstract class ChatEvent extends Equatable {
@@ -67,6 +68,37 @@ class SendEmergencyMessage extends ChatEvent {
 
   @override
   List<Object?> get props => [message, location];
+}
+
+// Add new event for real-time messages
+class NewMessageReceived extends ChatEvent {
+  final Message message;
+
+  const NewMessageReceived(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
+// Add new event for loaded messages from stream
+class NewMessagesLoaded extends ChatEvent {
+  final List<Message> messages;
+  final ChatRoom chatRoom;
+
+  const NewMessagesLoaded(this.messages, this.chatRoom);
+
+  @override
+  List<Object?> get props => [messages, chatRoom];
+}
+
+// Add new event for message stream errors
+class MessageStreamError extends ChatEvent {
+  final String error;
+
+  const MessageStreamError(this.error);
+
+  @override
+  List<Object?> get props => [error];
 }
 
 class MarkMessagesAsRead extends ChatEvent {

@@ -1,9 +1,9 @@
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:resq/core/services/app_initialization_service.dart';
 import 'package:resq/features/add_contact_page/bloc/emergency_contact_bloc.dart';
 import 'package:resq/features/add_contact_page/repository/emergency_contact_repository.dart';
 import 'package:resq/features/auth/bloc/auth_bloc.dart';
@@ -13,37 +13,41 @@ import 'package:resq/features/auth/repository/auth_repository.dart';
 import 'package:resq/features/chats/bloc/chat_bloc.dart';
 import 'package:resq/features/chats/bloc/chat_event.dart';
 import 'package:resq/features/chats/repository/chat_repository.dart';
+import 'package:resq/features/user/bloc/user_bloc.dart';
 import 'package:resq/features/user/repository/user_repository.dart';
 import 'package:resq/firebase_options.dart';
-import 'package:resq/offline/chat_cache/chat_cache_repository.dart';
 import 'package:resq/router/router.dart';
 
 import 'constants/constants.dart';
-import 'features/user/bloc/user_bloc.dart';
+import 'core/services/trigger_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-// Initialize Firebase
+  // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-// Initialize Hive for local storage
+  // Initialize Hive for local storage
   await Hive.initFlutter();
 
-// Initialize cache repository
-  final chatCacheRepository = ChatCacheRepository();
-  await chatCacheRepository.init();
+  // Initialize the notification service
+  await TriggerNotificationService().initialize();
 
-// Initialize connectivity service
-  final connectivity = Connectivity();
+  // First, initialize the AppInitializationService properly
+  final appInitService = AppInitializationService();
+  await appInitService.initializeApp();
 
-// Initialize repositories
+  // Use the chatCacheRepository from the service instead of creating a new one
+  final chatCacheRepository = appInitService.chatCacheRepository;
+
+  // Initialize repositories
   final authRepository = AuthRepository();
   final emergencyContactsRepository = EmergencyContactsRepository();
 
-// Create chat repository with cache
+  // Create chat repository with the cache from the service
   final chatRepository = ChatRepository(cacheRepository: chatCacheRepository);
 
+  // Now create user repository with the properly initialized chat repository
   final userRepository = UserRepository();
 
   runApp(
@@ -97,24 +101,24 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-// We'll initialize the shake service once we have contacts
-// This will happen after authentication in didChangeDependencies
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-// Listen to authentication state changes
     final authState = context.watch<AuthBloc>().state;
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (previous, current) {
+        // Only trigger navigation when state actually changes
+        return previous.runtimeType != current.runtimeType;
+      },
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-// When authenticated, process any pending messages
           context.read<ChatBloc>().add(ProcessPendingMessages());
           widget.routerConfig.go('/home');
         } else if (state is AuthUnauthenticated) {

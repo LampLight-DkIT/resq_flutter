@@ -61,7 +61,7 @@ class ChatRoom extends Equatable {
     };
   }
 
-  factory ChatRoom.fromMap(Map<String, dynamic> map) {
+  factory ChatRoom.fromMap(Map<String, dynamic> map, String id) {
     return ChatRoom(
       id: map['id'],
       currentUserId: map['currentUserId'],

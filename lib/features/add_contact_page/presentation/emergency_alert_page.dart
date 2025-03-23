@@ -13,6 +13,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart' as record_plugin;
+import 'package:resq/core/services/trigger_notification_service.dart';
 import 'package:resq/features/add_contact_page/bloc/emergency_contact_bloc.dart';
 import 'package:resq/features/add_contact_page/bloc/emergency_contact_event.dart';
 import 'package:resq/features/add_contact_page/bloc/emergency_contact_state.dart';
@@ -53,8 +54,6 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
   bool _includeLocation = true;
   Position? _currentPosition;
   bool _isLoadingLocation = false;
-  int _countdownSeconds = 5;
-  Timer? _countdownTimer;
   bool _isSending = false;
   String _errorMessage = '';
 
@@ -86,7 +85,6 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
   @override
   void dispose() {
     _messageController.dispose();
-    _countdownTimer?.cancel();
     _stopRecording();
     super.dispose();
   }
@@ -195,8 +193,6 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
   }
 
   // Audio recording methods
-  // Replace the _startRecording method with this updated version:
-
   Future<void> _startRecording() async {
     try {
       // Check if the microphone permission is granted
@@ -269,34 +265,6 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
     setState(() {
       _audioFile = null;
     });
-  }
-
-  void _startCountdown() {
-    setState(() {
-      _countdownSeconds = 5;
-    });
-
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {
-          if (_countdownSeconds > 0) {
-            _countdownSeconds--;
-          } else {
-            _countdownTimer?.cancel();
-            _sendEmergencyAlert();
-          }
-        });
-      }
-    });
-  }
-
-  void _cancelCountdown() {
-    _countdownTimer?.cancel();
-    if (mounted) {
-      setState(() {
-        _countdownSeconds = 5;
-      });
-    }
   }
 
   Future<List<String>> _uploadMediaFiles() async {
@@ -435,6 +403,25 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
         message += "\n\nAttachments: ${mediaUrls.length} files attached.";
       }
 
+      // Set up a completer to make sure the operation finishes before proceeding
+      final completer = Completer<void>();
+
+      // Store the subscription outside so we can cancel it
+      StreamSubscription? subscription;
+
+      subscription =
+          context.read<EmergencyContactsBloc>().stream.listen((state) {
+        print("Emergency state received: $state");
+        if (state is EmergencyAlertSent ||
+            state is EmergencyAlertWithMediaSent) {
+          if (!completer.isCompleted) completer.complete();
+          subscription?.cancel();
+        } else if (state is EmergencyAlertError) {
+          if (!completer.isCompleted) completer.completeError(state.message);
+          subscription?.cancel();
+        }
+      });
+
       // Send alert with media URLs
       if (mediaUrls.isNotEmpty) {
         // Use the media alert event if there are attachments
@@ -455,6 +442,40 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
                 customMessage: message,
               ),
             );
+      }
+
+      // Wait for the alert to be processed with a timeout
+      try {
+        await completer.future.timeout(
+          const Duration(seconds: 20),
+          onTimeout: () {
+            subscription?.cancel();
+            throw TimeoutException('Alert sending timed out');
+          },
+        );
+
+        // Success! Show message and navigate back
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Emergency alert sent successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Add a slight delay before navigating to ensure UI updates
+          await Future.delayed(const Duration(milliseconds: 300));
+          Navigator.pop(context);
+        }
+
+        await TriggerNotificationService().storeEmergencyAlert(
+          title: 'Emergency Alert Sent',
+          message:
+              'You sent an emergency alert to ${widget.contact.name}: $message',
+        );
+      } catch (e) {
+        // Handle any errors from the completer
+        handleError(e.toString());
+        subscription?.cancel();
       }
     } catch (e) {
       handleError(e);
@@ -515,17 +536,10 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
       ),
       body: BlocConsumer<EmergencyContactsBloc, EmergencyContactsState>(
         listener: (context, state) {
-          print("Emergency state: $state");
-          if (state is EmergencyAlertSent ||
-              state is EmergencyAlertWithMediaSent) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Emergency alert sent successfully'),
-                backgroundColor: Colors.green,
-              ),
-            );
-            Navigator.pop(context);
-          } else if (state is EmergencyAlertError) {
+          print("Emergency state in listener: $state");
+          // We handle state changes in the _sendEmergencyAlert method now,
+          // but keep this for error handling
+          if (state is EmergencyAlertError) {
             setState(() {
               _isSending = false;
               _errorMessage = state.message;
@@ -887,45 +901,20 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
                     ],
                   ),
 
-                // Countdown text if countdown is active
-                if (_countdownTimer != null && _countdownTimer!.isActive)
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Sending alert in $_countdownSeconds seconds',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _cancelCountdown,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[300],
-                          ),
-                          child: const Text('Cancel'),
-                        ),
-                      ],
-                    ),
-                  )
-                else if (_isSending)
+                // Send button or loading indicator
+                if (_isSending)
                   const Center(
                     child: Column(
                       children: [
                         CircularProgressIndicator(),
                         SizedBox(height: 16),
-                        Text('Sending alert...'),
+                        Text('Sending emergency alert...'),
                       ],
                     ),
                   )
                 else
                   ElevatedButton(
-                    onPressed: _startCountdown,
+                    onPressed: _sendEmergencyAlert,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                       padding: const EdgeInsets.symmetric(vertical: 16),

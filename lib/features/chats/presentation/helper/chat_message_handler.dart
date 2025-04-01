@@ -230,11 +230,11 @@ class ChatMessageHandler {
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text('Cancel'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey.shade200,
                     foregroundColor: Colors.black87,
                   ),
+                  child: Text('Cancel'),
                 ),
               ),
             ],

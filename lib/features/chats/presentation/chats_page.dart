@@ -17,7 +17,7 @@ import 'package:resq/features/chats/presentation/helper/chat_ui_components.dart'
 class ChatPage extends StatefulWidget {
   final EmergencyContact contact;
 
-  const ChatPage({Key? key, required this.contact}) : super(key: key);
+  const ChatPage({super.key, required this.contact});
 
   @override
   _ChatPageState createState() => _ChatPageState();

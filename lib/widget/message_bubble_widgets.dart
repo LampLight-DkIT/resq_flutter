@@ -7,10 +7,10 @@ class ImageMessageBubble extends StatelessWidget {
   final bool isCurrentUser;
 
   const ImageMessageBubble({
-    Key? key,
+    super.key,
     required this.message,
     required this.isCurrentUser,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -105,10 +105,10 @@ class DocumentMessageBubble extends StatelessWidget {
   final bool isCurrentUser;
 
   const DocumentMessageBubble({
-    Key? key,
+    super.key,
     required this.message,
     required this.isCurrentUser,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -198,10 +198,10 @@ class AudioMessageBubble extends StatefulWidget {
   final bool isCurrentUser;
 
   const AudioMessageBubble({
-    Key? key,
+    super.key,
     required this.message,
     required this.isCurrentUser,
-  }) : super(key: key);
+  });
 
   @override
   State<AudioMessageBubble> createState() => _AudioMessageBubbleState();

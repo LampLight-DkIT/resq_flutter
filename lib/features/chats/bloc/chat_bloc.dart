@@ -18,18 +18,18 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   // Memory caches
   List<ChatRoom> _allChatRooms = [];
-  Map<String, List<Message>> _messagesCache = {};
+  final Map<String, List<Message>> _messagesCache = {};
   bool get hasCachedChatRooms => _allChatRooms.isNotEmpty;
   List<ChatRoom> get cachedChatRooms => List<ChatRoom>.from(_allChatRooms);
 
   // Subscriptions
   StreamSubscription? _chatRoomsSubscription;
-  Map<String, StreamSubscription> _messageSubscriptions = {};
+  final Map<String, StreamSubscription> _messageSubscriptions = {};
   StreamSubscription? _connectivitySubscription;
 
   // Flags for operation tracking
   bool _isFetchingChatRooms = false;
-  Map<String, bool> _isFetchingMessages = {};
+  final Map<String, bool> _isFetchingMessages = {};
 
   // Debounce timers
   Timer? _loadDebounce;

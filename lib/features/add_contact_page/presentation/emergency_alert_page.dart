@@ -23,7 +23,7 @@ import 'package:resq/features/add_contact_page/repository/emergency_contact_repo
 class EmergencyAlertPage extends StatelessWidget {
   final EmergencyContact contact;
 
-  const EmergencyAlertPage({Key? key, required this.contact}) : super(key: key);
+  const EmergencyAlertPage({super.key, required this.contact});
 
   @override
   Widget build(BuildContext context) {
@@ -41,8 +41,7 @@ class EmergencyAlertPage extends StatelessWidget {
 class EmergencyAlertPageContent extends StatefulWidget {
   final EmergencyContact contact;
 
-  const EmergencyAlertPageContent({Key? key, required this.contact})
-      : super(key: key);
+  const EmergencyAlertPageContent({super.key, required this.contact});
 
   @override
   State<EmergencyAlertPageContent> createState() =>
@@ -59,7 +58,7 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
 
   // Media attachment variables
   final ImagePicker _picker = ImagePicker();
-  List<File> _imageFiles = [];
+  final List<File> _imageFiles = [];
   File? _videoFile;
   File? _audioFile;
   bool _isRecording = false;
@@ -486,7 +485,7 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
       } catch (e) {
         // Handle any errors from the completer
         handleError(e.toString());
-        subscription?.cancel();
+        subscription.cancel();
       }
     } catch (e) {
       handleError(e);
@@ -500,8 +499,7 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
     }
 
     if (_includeLocation && _currentPosition != null) {
-      message += "\n\nMy current location: " +
-          "https://maps.google.com/?q=${_currentPosition!.latitude},${_currentPosition!.longitude}";
+      message += "\n\nMy current location: " "https://maps.google.com/?q=${_currentPosition!.latitude},${_currentPosition!.longitude}";
     }
 
     return message;

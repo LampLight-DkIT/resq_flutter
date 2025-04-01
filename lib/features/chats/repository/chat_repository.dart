@@ -116,9 +116,7 @@ class ChatRepository {
     if (isTrigger) {
       messageToSend = message.copyWith(type: MessageType.emergency);
       // For trigger phrases, get location if needed
-      if (location == null) {
-        location = await _getEmergencyLocation();
-      }
+      location ??= await _getEmergencyLocation();
     }
 
     // Create a copy with a temporary ID if needed
@@ -129,11 +127,11 @@ class ChatRepository {
 
     // Handle optimistic UI updates with cache if available
     if (_cacheRepository != null) {
-      await _cacheRepository!.addMessageToCache(localMessage);
+      await _cacheRepository.addMessageToCache(localMessage);
 
       // If offline, add to pending queue
       if (isOffline) {
-        await _cacheRepository!.addToPendingQueue(localMessage);
+        await _cacheRepository.addToPendingQueue(localMessage);
         return localMessage;
       }
     }
@@ -167,7 +165,7 @@ class ChatRepository {
 
       // If we used a temporary ID for the cache, update it
       if (_cacheRepository != null && localMessage.id.startsWith('temp_')) {
-        await _cacheRepository!.addMessageToCache(messageWithId);
+        await _cacheRepository.addMessageToCache(messageWithId);
       }
 
       return messageWithId;
@@ -253,7 +251,7 @@ class ChatRepository {
 
       // Immediately emit cached data
       Future<void> emitCachedData() async {
-        final cachedRooms = _cacheRepository!.getCachedChatRooms(userId);
+        final cachedRooms = _cacheRepository.getCachedChatRooms(userId);
         if (cachedRooms.isNotEmpty) {
           controller.add(cachedRooms);
         }
@@ -291,7 +289,7 @@ class ChatRepository {
             }).toList();
 
             // Update cache
-            _cacheRepository!.cacheChatRooms(chatRooms, userId);
+            _cacheRepository.cacheChatRooms(chatRooms, userId);
 
             // Emit updated data
             controller.add(chatRooms);
@@ -352,7 +350,7 @@ class ChatRepository {
 
       // Immediately emit cached messages
       Future<void> emitCachedMessages() async {
-        final cachedMessages = _cacheRepository!.getCachedMessages(chatRoomId);
+        final cachedMessages = _cacheRepository.getCachedMessages(chatRoomId);
         if (cachedMessages.isNotEmpty) {
           controller.add(cachedMessages);
         }
@@ -373,7 +371,7 @@ class ChatRepository {
                 .toList();
 
             // Update cache
-            _cacheRepository!.cacheMessages(chatRoomId, messages);
+            _cacheRepository.cacheMessages(chatRoomId, messages);
 
             // Emit updated messages
             controller.add(messages);
@@ -409,14 +407,14 @@ class ChatRepository {
   Future<void> processPendingMessages() async {
     if (_cacheRepository == null) return;
 
-    final pendingMessages = _cacheRepository!.getPendingMessages();
+    final pendingMessages = _cacheRepository.getPendingMessages();
 
     for (final message in pendingMessages) {
       try {
         await sendMessage(message: message);
 
         // If successful, remove from pending queue
-        await _cacheRepository!.removeFromPendingQueue(message.id);
+        await _cacheRepository.removeFromPendingQueue(message.id);
       } catch (e) {
         print('Failed to send pending message: ${e.toString()}');
       }
@@ -451,7 +449,7 @@ class ChatRepository {
 
     // Update cache if available
     if (_cacheRepository != null) {
-      final messages = _cacheRepository!.getCachedMessages(chatRoomId);
+      final messages = _cacheRepository.getCachedMessages(chatRoomId);
       final updatedMessages = messages.map((msg) {
         if (msg.receiverId == userId && !msg.isRead) {
           return msg.copyWith(isRead: true);
@@ -459,7 +457,7 @@ class ChatRepository {
         return msg;
       }).toList();
 
-      await _cacheRepository!.cacheMessages(chatRoomId, updatedMessages);
+      await _cacheRepository.cacheMessages(chatRoomId, updatedMessages);
     }
   }
 

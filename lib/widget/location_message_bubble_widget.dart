@@ -9,10 +9,10 @@ class LocationMessageBubble extends StatefulWidget {
   final bool isCurrentUser;
 
   const LocationMessageBubble({
-    Key? key,
+    super.key,
     required this.message,
     required this.isCurrentUser,
-  }) : super(key: key);
+  });
 
   @override
   State<LocationMessageBubble> createState() => _LocationMessageBubbleState();

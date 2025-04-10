@@ -18,18 +18,18 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   // Memory caches
   List<ChatRoom> _allChatRooms = [];
-  Map<String, List<Message>> _messagesCache = {};
+  final Map<String, List<Message>> _messagesCache = {};
   bool get hasCachedChatRooms => _allChatRooms.isNotEmpty;
   List<ChatRoom> get cachedChatRooms => List<ChatRoom>.from(_allChatRooms);
 
   // Subscriptions
   StreamSubscription? _chatRoomsSubscription;
-  Map<String, StreamSubscription> _messageSubscriptions = {};
+  final Map<String, StreamSubscription> _messageSubscriptions = {};
   StreamSubscription? _connectivitySubscription;
 
   // Flags for operation tracking
   bool _isFetchingChatRooms = false;
-  Map<String, bool> _isFetchingMessages = {};
+  final Map<String, bool> _isFetchingMessages = {};
 
   // Debounce timers
   Timer? _loadDebounce;
@@ -267,15 +267,42 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   Future<void> _onSendMessage(
       SendMessage event, Emitter<ChatState> emit) async {
     try {
+      // Add specific debugging for location messages
+      if (event.message.type == MessageType.location) {
+        print("LOCATION DEBUG: Sending location message in ChatBloc");
+        print(
+            "LOCATION DEBUG: Message type index: ${event.message.type.index}");
+        print("LOCATION DEBUG: Message content: ${event.message.content}");
+        print(
+            "LOCATION DEBUG: Message locationData: ${event.message.locationData}");
+
+        if (event.message.content.isEmpty ||
+            !event.message.content.contains(',')) {
+          print(
+              "LOCATION ERROR: Invalid location content format: ${event.message.content}");
+        }
+
+        // Log the full message map for Firebase debugging
+        print("LOCATION DEBUG: Message map: ${event.message.toMap()}");
+      }
+
       // Check connectivity status
       final connectivityResult = await _connectivity.checkConnectivity();
       final isOffline = connectivityResult == ConnectivityResult.none;
+
+      print("DEBUG: isOffline: $isOffline");
 
       // Send message
       final message = await _repository.sendMessage(
         message: event.message,
         isOffline: isOffline,
       );
+
+      // Add location-specific logging for success
+      if (event.message.type == MessageType.location) {
+        print("LOCATION DEBUG: Location message sent successfully");
+        print("LOCATION DEBUG: Returned message ID: ${message.id}");
+      }
 
       // Update local cache for instant UI feedback
       final chatRoomId = message.chatRoomId;
@@ -314,6 +341,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         ));
       }
     } catch (e) {
+      print("ERROR sending message: $e");
+      if (event.message.type == MessageType.location) {
+        print("LOCATION ERROR: Failed to send location message: $e");
+      }
       emit(ChatError(e.toString()));
     }
   }

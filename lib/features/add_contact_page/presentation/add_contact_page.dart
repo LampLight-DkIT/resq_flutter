@@ -10,7 +10,7 @@ import 'package:resq/features/add_contact_page/model/emergency_contact_model.dar
 import 'package:resq/features/add_contact_page/repository/emergency_contact_repository.dart';
 
 class AddContactPage extends StatelessWidget {
-  const AddContactPage({Key? key}) : super(key: key);
+  const AddContactPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +26,7 @@ class AddContactPage extends StatelessWidget {
 }
 
 class AddContactPageContent extends StatefulWidget {
-  const AddContactPageContent({Key? key}) : super(key: key);
+  const AddContactPageContent({super.key});
 
   @override
   State<AddContactPageContent> createState() => _AddContactPageContentState();

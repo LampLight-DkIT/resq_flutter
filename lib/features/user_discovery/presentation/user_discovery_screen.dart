@@ -29,7 +29,7 @@ class DiscoverUsersPage extends StatelessWidget {
 }
 
 class DiscoverUsersPageContent extends StatefulWidget {
-  const DiscoverUsersPageContent({Key? key}) : super(key: key);
+  const DiscoverUsersPageContent({super.key});
 
   @override
   _DiscoverUsersPageContentState createState() =>

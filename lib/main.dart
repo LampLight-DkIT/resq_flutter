@@ -1,3 +1,4 @@
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -28,12 +29,19 @@ void main() async {
   // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  // Firebase app check
+  final appCheck = FirebaseAppCheck.instance;
+
+  await appCheck.activate(
+    androidProvider: AndroidProvider.debug,
+    appleProvider: AppleProvider.debug,
+  );
+
   // Initialize Hive for local storage
   await Hive.initFlutter();
 
   // Initialize the notification service
   await TriggerNotificationService().initialize();
-
   await EmergencyAlertListener().initialize();
 
   // First, initialize the AppInitializationService properly

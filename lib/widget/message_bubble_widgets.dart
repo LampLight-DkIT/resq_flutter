@@ -6,97 +6,72 @@ class ImageMessageBubble extends StatelessWidget {
   final Message message;
   final bool isCurrentUser;
 
-  const ImageMessageBubble({
-    Key? key,
-    required this.message,
-    required this.isCurrentUser,
-  }) : super(key: key);
+  const ImageMessageBubble(
+      {super.key, required this.message, required this.isCurrentUser});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width * 0.6,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: GestureDetector(
-              onTap: () {
-                // Show full screen image viewer
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => Scaffold(
-                      appBar: AppBar(
-                        backgroundColor: Colors.black,
-                        iconTheme: const IconThemeData(color: Colors.white),
-                      ),
-                      backgroundColor: Colors.black,
-                      body: Center(
-                        child: InteractiveViewer(
-                          child: Image.network(
-                            message.content,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-              child: Hero(
-                tag: 'image_${message.id}',
-                child: Image.network(
-                  message.content,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: 200,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      height: 200,
-                      width: double.infinity,
-                      color: Colors.grey[300],
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                              : null,
-                        ),
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: 200,
-                      width: double.infinity,
-                      color: Colors.grey[300],
-                      child: const Center(
-                        child: Icon(Icons.error, color: Colors.red),
-                      ),
-                    );
-                  },
+    return GestureDetector(
+      onTap: () {
+        // Implement full screen image view
+        _showFullScreenImage(context);
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            if (!isCurrentUser)
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundImage: null, // Add contact photo if needed
+                  child: Text('A', style: const TextStyle(fontSize: 12)),
                 ),
               ),
-            ),
-          ),
-          if (message.content.contains('caption:'))
-            Padding(
-              padding: const EdgeInsets.only(top: 6.0),
-              child: Text(
-                message.content.split('caption:')[1],
-                style: TextStyle(
-                  color: isCurrentUser ? Colors.blue[900] : Colors.black87,
-                ),
+            Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.7,
+                maxHeight: 250,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color:
+                    isCurrentUser ? Colors.blue.shade50 : Colors.grey.shade200,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: message.attachmentUrl != null
+                    ? Image.network(
+                        message.attachmentUrl!,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(Icons.error, color: Colors.red);
+                        },
+                      )
+                    : Placeholder(),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  void _showFullScreenImage(BuildContext context) {
+    // Implement full screen image view
   }
 }
 
@@ -105,10 +80,10 @@ class DocumentMessageBubble extends StatelessWidget {
   final bool isCurrentUser;
 
   const DocumentMessageBubble({
-    Key? key,
+    super.key,
     required this.message,
     required this.isCurrentUser,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -198,10 +173,10 @@ class AudioMessageBubble extends StatefulWidget {
   final bool isCurrentUser;
 
   const AudioMessageBubble({
-    Key? key,
+    super.key,
     required this.message,
     required this.isCurrentUser,
-  }) : super(key: key);
+  });
 
   @override
   State<AudioMessageBubble> createState() => _AudioMessageBubbleState();

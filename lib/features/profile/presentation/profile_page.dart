@@ -15,7 +15,7 @@ import 'package:resq/features/profile/bloc/profile_state.dart';
 import 'package:resq/router/router.dart';
 
 class ProfilePage extends StatelessWidget {
-  const ProfilePage({Key? key}) : super(key: key);
+  const ProfilePage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +31,7 @@ class ProfilePage extends StatelessWidget {
 }
 
 class ProfilePageContent extends StatefulWidget {
-  const ProfilePageContent({Key? key}) : super(key: key);
+  const ProfilePageContent({super.key});
 
   @override
   State<ProfilePageContent> createState() => _ProfilePageContentState();

@@ -17,7 +17,7 @@ import 'package:resq/features/chats/presentation/helper/chat_ui_components.dart'
 class ChatPage extends StatefulWidget {
   final EmergencyContact contact;
 
-  const ChatPage({Key? key, required this.contact}) : super(key: key);
+  const ChatPage({super.key, required this.contact});
 
   @override
   _ChatPageState createState() => _ChatPageState();
@@ -467,6 +467,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   Widget _buildMessagesList() {
     return ListView.builder(
+      shrinkWrap: true,
       controller: _scrollController,
       padding: const EdgeInsets.all(16.0),
       itemCount: _currentMessages.length,
@@ -499,6 +500,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
               isCurrentUser: isCurrentUser,
               contactPhotoURL: widget.contact.photoURL,
               contactName: widget.contact.name,
+              currentUserPhotoURL: _auth.currentUser?.photoURL,
+              currentUserName: _auth.currentUser?.displayName ?? "Me",
             ),
           ],
         );

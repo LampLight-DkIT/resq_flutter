@@ -14,13 +14,13 @@ class AttachmentOptionsBottomSheet extends StatelessWidget {
   final Function() onRecordAudio;
 
   const AttachmentOptionsBottomSheet({
-    Key? key,
+    super.key,
     required this.onImageSelected,
     required this.onDocumentSelected,
     required this.onAudioSelected,
     required this.onLocationSelected,
     required this.onRecordAudio,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -159,10 +159,10 @@ class AudioRecordingDialog extends StatefulWidget {
   final Function(File) onComplete;
 
   const AudioRecordingDialog({
-    Key? key,
+    super.key,
     required this.onComplete,
     required Null Function() onCancel,
-  }) : super(key: key);
+  });
 
   @override
   State<AudioRecordingDialog> createState() => _AudioRecordingDialogState();

@@ -4,7 +4,7 @@ import 'package:resq/core/services/emergency_alert_listener.dart'; // Add this i
 import 'package:resq/features/notification/notification_items.dart';
 
 class NotificationPage extends StatefulWidget {
-  const NotificationPage({Key? key}) : super(key: key);
+  const NotificationPage({super.key});
 
   @override
   State<NotificationPage> createState() => _NotificationPageState();
@@ -14,7 +14,7 @@ class _NotificationPageState extends State<NotificationPage> {
   List<NotificationItem> _notifications = [];
   List<NotificationItem> _filteredNotifications = [];
   bool _isLoading = true;
-  bool _hasDebugMode = false; // Set to true only for debugging
+  final bool _hasDebugMode = false; // Set to true only for debugging
   int _tapCount = 0;
   DateTime? _lastTapTime;
 

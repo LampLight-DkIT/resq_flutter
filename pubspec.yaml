@@ -41,14 +41,21 @@ dependencies:
   hive_flutter: ^1.1.0
   hive_generator: ^2.0.1
   connectivity_plus: ^6.1.3
-  url_launcher: ^6.3.1
   maps_launcher: ^3.0.0+1
   record: ^5.2.1
   just_audio: ^0.9.46
   cached_network_image: ^3.4.1
   geocoding: ^3.0.0
   flutter_local_notifications: ^19.0.0
+  firebase_app_check: ^0.3.2+5
+  heif_converter: ^1.0.1
 
+  uuid: any
+  path: any
+  path_provider: any
+  crypto: any
+  bloc: any
+  provider: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -38,11 +38,11 @@ class ChatService {
 
     // Check if chat room already exists
     DocumentSnapshot chatRoom =
-        await _firestore.collection('chatRooms').doc(chatRoomId).get();
+        await _firestore.collection('chat_rooms').doc(chatRoomId).get();
 
     if (!chatRoom.exists) {
       // Create new chat room
-      await _firestore.collection('chatRooms').doc(chatRoomId).set({
+      await _firestore.collection('chat_rooms').doc(chatRoomId).set({
         'participants': [currentUserId, otherUserId],
         'lastMessage': null,
         'lastMessageTime': null,
@@ -94,7 +94,12 @@ class ChatService {
     }
 
     // Save message
-    await messageRef.set(messageData);
+    try {
+      await messageRef.set(messageData);
+      print("Successfully wrote message to Firestore: ${messageRef.id}");
+    } catch (e) {
+      print("Error writing message to Firestore: $e");
+    }
 
     // Update chat room with last message info
     await _firestore.collection('chatRooms').doc(chatRoomId).update({

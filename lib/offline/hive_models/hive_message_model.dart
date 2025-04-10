@@ -8,11 +8,17 @@ enum HiveMessageType {
   @HiveField(0)
   text,
   @HiveField(1)
-  emergency,
-  @HiveField(2)
-  location,
-  @HiveField(3)
   image,
+  @HiveField(2)
+  video,
+  @HiveField(3)
+  location,
+  @HiveField(4)
+  document,
+  @HiveField(5)
+  audio,
+  @HiveField(6)
+  emergency,
 }
 
 @HiveType(typeId: 2)

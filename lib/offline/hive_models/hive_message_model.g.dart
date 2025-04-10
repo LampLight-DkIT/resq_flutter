@@ -74,11 +74,17 @@ class HiveMessageTypeAdapter extends TypeAdapter<HiveMessageType> {
       case 0:
         return HiveMessageType.text;
       case 1:
-        return HiveMessageType.emergency;
-      case 2:
-        return HiveMessageType.location;
-      case 3:
         return HiveMessageType.image;
+      case 2:
+        return HiveMessageType.video;
+      case 3:
+        return HiveMessageType.location;
+      case 4:
+        return HiveMessageType.document;
+      case 5:
+        return HiveMessageType.audio;
+      case 6:
+        return HiveMessageType.emergency;
       default:
         return HiveMessageType.text;
     }
@@ -90,14 +96,23 @@ class HiveMessageTypeAdapter extends TypeAdapter<HiveMessageType> {
       case HiveMessageType.text:
         writer.writeByte(0);
         break;
-      case HiveMessageType.emergency:
+      case HiveMessageType.image:
         writer.writeByte(1);
         break;
-      case HiveMessageType.location:
+      case HiveMessageType.video:
         writer.writeByte(2);
         break;
-      case HiveMessageType.image:
+      case HiveMessageType.location:
         writer.writeByte(3);
+        break;
+      case HiveMessageType.document:
+        writer.writeByte(4);
+        break;
+      case HiveMessageType.audio:
+        writer.writeByte(5);
+        break;
+      case HiveMessageType.emergency:
+        writer.writeByte(6);
         break;
     }
   }

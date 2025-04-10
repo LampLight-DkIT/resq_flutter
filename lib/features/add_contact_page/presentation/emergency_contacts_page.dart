@@ -11,7 +11,7 @@ import 'package:resq/features/add_contact_page/repository/emergency_contact_repo
 import 'package:resq/router/router.dart';
 
 class EmergencyContactsPage extends StatelessWidget {
-  const EmergencyContactsPage({Key? key}) : super(key: key);
+  const EmergencyContactsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +27,7 @@ class EmergencyContactsPage extends StatelessWidget {
 }
 
 class EmergencyContactsPageContent extends StatefulWidget {
-  const EmergencyContactsPageContent({Key? key}) : super(key: key);
+  const EmergencyContactsPageContent({super.key});
 
   @override
   State<EmergencyContactsPageContent> createState() =>

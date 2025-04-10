@@ -213,28 +213,29 @@ class ChatMessageHandler {
                   ),
                 ),
               ),
-              Divider(),
+              const Divider(),
               ListTile(
-                leading: Icon(Icons.warning_amber_outlined,
+                leading: const Icon(Icons.warning_amber_outlined,
                     color: Colors.red, size: 32),
                 title: Text('Send Emergency Alert to ${contact.name}'),
-                subtitle: Text('This will trigger an emergency notification'),
+                subtitle:
+                    const Text('This will trigger an emergency notification'),
                 onTap: () {
                   Navigator.pop(context);
                   onSendEmergency();
                   _navigateToEmergencyAlertPage();
                 },
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text('Cancel'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.grey.shade200,
                     foregroundColor: Colors.black87,
                   ),
+                  child: const Text('Cancel'),
                 ),
               ),
             ],
@@ -253,8 +254,6 @@ class ChatMessageHandler {
       ),
     );
   }
-
-  // Rest of the methods remain the same...
 
   // Show attachment options with improved UI and error handling
   void showAttachmentOptions({required Function(Message) onSuccess}) {
@@ -307,10 +306,11 @@ class ChatMessageHandler {
   // Process audio file with improved error handling
   Future<void> _handleAudioFile(
       File audioFile, Function(Message) onSuccess) async {
-    if (chatRoom == null || !canSendMessage()) {
-      _isProcessing = false;
-      return;
-    }
+    // This function casuing every where
+    // if (chatRoom == null || !canSendMessage()) {
+    //   _isProcessing = false;
+    //   return;
+    // }
 
     _showLoadingDialog('Processing audio...');
 
@@ -324,7 +324,7 @@ class ChatMessageHandler {
           Navigator.of(context, rootNavigator: true).pop();
         }
 
-        // For recorded audio, include a placeholder duration
+        // For recorded audio, include a placeholder duration or 'recorded_audio' tag
         final content = '$audioUrl|recorded_audio';
         final message = await _sendMediaMessage(content, MessageType.audio);
         if (message != null) {
@@ -357,6 +357,8 @@ class ChatMessageHandler {
 
       final imageUrl = await attachmentHandler.uploadFile(
           imageFile, chatRoom!.id, MessageType.image);
+
+      print(imageUrl);
 
       if (imageUrl != null) {
         if (context.mounted) {
@@ -455,6 +457,93 @@ class ChatMessageHandler {
     }
   }
 
+// handle location selection with improved error handling
+  Future<void> _handleLocationSelection(Function(Message) onSuccess) async {
+    if (_isProcessing) return;
+    _isProcessing = true;
+
+    try {
+      _showLoadingDialog('Getting your location...');
+
+      final position = await attachmentHandler.getCurrentLocation();
+
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      if (position == null) {
+        showErrorSnackBar('Could not get your location');
+        _isProcessing = false;
+        return;
+      }
+
+      // Validate coordinates
+      if (position.latitude < -90 ||
+          position.latitude > 90 ||
+          position.longitude < -180 ||
+          position.longitude > 180) {
+        print(
+            "LOCATION DEBUG: Invalid coordinates received: ${position.latitude}, ${position.longitude}");
+        showErrorSnackBar('Invalid location coordinates');
+        _isProcessing = false;
+        return;
+      }
+
+      // Format with consistent decimal places - 6 is standard for GPS precision
+      final locationString =
+          '${position.latitude.toStringAsFixed(6)},${position.longitude.toStringAsFixed(6)}';
+
+      print("LOCATION DEBUG: Raw position = $position");
+      print("LOCATION DEBUG: Formatted location string = $locationString");
+
+      final currentUser = auth.currentUser;
+      if (currentUser == null) {
+        _isProcessing = false;
+        showErrorSnackBar('User not authenticated');
+        return;
+      }
+
+      // Generate a unique ID with timestamp prefix for better sorting
+      final messageId =
+          "${DateTime.now().millisecondsSinceEpoch}_${currentUser.uid.substring(0, 4)}";
+
+      // Create the message with the proper format for your Message model
+      final message = Message(
+        id: messageId,
+        senderId: currentUser.uid,
+        receiverId: contact.userId!,
+        chatRoomId: chatRoom!.id,
+        content: locationString,
+        timestamp: DateTime.now(),
+        type: MessageType.location,
+        isRead: false,
+        status: MessageStatus.sending,
+        locationData: locationString, // Set both content and locationData
+      );
+
+      print("LOCATION DEBUG: Created message object: $message");
+      print(
+          "LOCATION DEBUG: Message type: ${message.type} (index: ${message.type.index})");
+      print("LOCATION DEBUG: Message content: ${message.content}");
+
+      // Send message through BLoC
+      chatBloc.add(SendMessage(message));
+
+      // Call success callback immediately for optimistic UI update
+      onSuccess(message);
+    } catch (e, stackTrace) {
+      print("LOCATION ERROR: Error = $e");
+      print("LOCATION ERROR: Stack trace: $stackTrace");
+
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        showErrorSnackBar('Error sending location: ${e.toString()}');
+      }
+    } finally {
+      _isProcessing = false;
+    }
+  }
+
   // Handle upload errors with improved UI
   void _handleUploadError(String type, dynamic error) {
     _isProcessing = false;
@@ -481,7 +570,7 @@ class ChatMessageHandler {
             Expanded(
               child: Text(
                 message,
-                style: TextStyle(fontSize: 16),
+                style: const TextStyle(fontSize: 16),
               ),
             ),
           ],
@@ -490,53 +579,38 @@ class ChatMessageHandler {
     );
   }
 
-  // Handle location selection with improved error handling
-  Future<void> _handleLocationSelection(Function(Message) onSuccess) async {
-    if (_isProcessing) return;
-    _isProcessing = true;
-
-    try {
-      _showLoadingDialog('Getting your location...');
-
-      final position = await attachmentHandler.getCurrentLocation();
-
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-
-      if (position == null) {
-        showErrorSnackBar('Could not get your location');
-        _isProcessing = false;
-        return;
-      }
-
-      final locationString = '${position.latitude},${position.longitude}';
-      final message =
-          await _sendMediaMessage(locationString, MessageType.location);
-      if (message != null) {
-        onSuccess(message);
-      }
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-      showErrorSnackBar('Error sending location: ${e.toString()}');
-    } finally {
-      _isProcessing = false;
-    }
-  }
-
   // Send a media message with improved error handling
   Future<Message?> _sendMediaMessage(String content, MessageType type) async {
-    if (!canSendMessage()) return null;
-
     try {
       final currentUser = auth.currentUser;
       if (currentUser == null) return null;
 
-      // Generate a unique ID that includes a timestamp prefix for better sorting
+      // Generate a unique ID
       final messageId =
           "${DateTime.now().millisecondsSinceEpoch}_${currentUser.uid.substring(0, 4)}";
+
+      print("DEBUG: Creating media message with type: $type");
+      print("DEBUG: Media content: $content");
+
+      // Extract attachment URL
+      String attachmentUrl = content;
+      Map<String, dynamic>? metadata;
+
+      if (content.contains('|')) {
+        final parts = content.split('|');
+        attachmentUrl = parts[0];
+
+        // Create metadata based on message type
+        if (type == MessageType.document && parts.length > 3) {
+          metadata = {
+            'fileName': parts[1],
+            'fileSize': parts[2],
+            'fileExt': parts[3]
+          };
+        } else if (type == MessageType.audio && parts.length > 1) {
+          metadata = {'duration': parts[1]};
+        }
+      }
 
       final message = Message(
         id: messageId,
@@ -547,9 +621,11 @@ class ChatMessageHandler {
         timestamp: DateTime.now(),
         type: type,
         isRead: false,
+        attachmentUrl: attachmentUrl,
+        attachmentMetadata: metadata,
       );
 
-      // Send to backend
+      // Send through BLoC
       chatBloc.add(SendMessage(message));
 
       return message;

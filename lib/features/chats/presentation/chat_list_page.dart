@@ -219,6 +219,7 @@ class _ChatListPageState extends State<ChatListPage> {
     }
 
     return ListView.builder(
+      shrinkWrap: true,
       itemCount: chatRooms.length,
       itemBuilder: (context, index) {
         final chatRoom = chatRooms[index];

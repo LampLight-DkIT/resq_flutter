@@ -153,3 +153,5 @@ class SendDirectEmergencyAlertWithMedia extends EmergencyContactsEvent {
   @override
   List<Object?> get props => [senderId, receiverUserId, message, mediaUrls];
 }
+
+class ResetEmergencyAlertState extends EmergencyContactsEvent {}

@@ -23,7 +23,7 @@ import 'package:resq/features/add_contact_page/repository/emergency_contact_repo
 class EmergencyAlertPage extends StatelessWidget {
   final EmergencyContact contact;
 
-  const EmergencyAlertPage({Key? key, required this.contact}) : super(key: key);
+  const EmergencyAlertPage({super.key, required this.contact});
 
   @override
   Widget build(BuildContext context) {
@@ -41,8 +41,7 @@ class EmergencyAlertPage extends StatelessWidget {
 class EmergencyAlertPageContent extends StatefulWidget {
   final EmergencyContact contact;
 
-  const EmergencyAlertPageContent({Key? key, required this.contact})
-      : super(key: key);
+  const EmergencyAlertPageContent({super.key, required this.contact});
 
   @override
   State<EmergencyAlertPageContent> createState() =>
@@ -56,10 +55,11 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
   bool _isLoadingLocation = false;
   bool _isSending = false;
   String _errorMessage = '';
+  bool _hasInitialized = false; // Flag to prevent multiple initializations
 
   // Media attachment variables
   final ImagePicker _picker = ImagePicker();
-  List<File> _imageFiles = [];
+  final List<File> _imageFiles = [];
   File? _videoFile;
   File? _audioFile;
   bool _isRecording = false;
@@ -72,6 +72,15 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
   void initState() {
     super.initState();
     _messageController.text = widget.contact.secretMessage;
+
+    // Only reset state, not send alerts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_hasInitialized) {
+        _hasInitialized = true;
+        context.read<EmergencyContactsBloc>().add(ResetEmergencyAlertState());
+      }
+    });
+
     _requestLocationPermission();
     _requestMediaPermissions();
 
@@ -500,7 +509,7 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
     }
 
     if (_includeLocation && _currentPosition != null) {
-      message += "\n\nMy current location: " +
+      message += "\n\nMy current location: "
           "https://maps.google.com/?q=${_currentPosition!.latitude},${_currentPosition!.longitude}";
     }
 
@@ -548,9 +557,23 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
       body: BlocConsumer<EmergencyContactsBloc, EmergencyContactsState>(
         listener: (context, state) {
           print("Emergency state in listener: $state");
-          // We handle state changes in the _sendEmergencyAlert method now,
-          // but keep this for error handling
-          if (state is EmergencyAlertError) {
+          // Only process completed states if we're already sending (meaning the button was clicked)
+          if ((state is EmergencyAlertSent ||
+                  state is EmergencyAlertWithMediaSent) &&
+              _isSending) {
+            setState(() {
+              _isSending = false;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Emergency alert sent successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+
+            Navigator.pop(context);
+          } else if (state is EmergencyAlertError && _isSending) {
             setState(() {
               _isSending = false;
               _errorMessage = state.message;
@@ -571,49 +594,28 @@ class _EmergencyAlertPageContentState extends State<EmergencyAlertPageContent> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Alert icon and contact info
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
+                ListTile(
+                  leading: Icon(
+                    Icons.warning,
                   ),
-                  child: Column(
+                  title: Text("Warning: Sending an emergency alert to"),
+                  titleTextStyle: Theme.of(context).textTheme.labelLarge,
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.warning_amber_rounded,
-                        size: 64,
-                        color: Colors.red,
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'You are about to send an emergency alert to:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
                       Text(
                         widget.contact.name,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
                       ),
                       if (widget.contact.relation.isNotEmpty &&
                           widget.contact.relation != 'App User')
                         Text(
                           widget.contact.relation,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[700],
-                          ),
                         ),
                     ],
                   ),
+                  subtitleTextStyle: Theme.of(context).textTheme.labelSmall,
                 ),
+
                 const SizedBox(height: 24),
 
                 // Emergency message

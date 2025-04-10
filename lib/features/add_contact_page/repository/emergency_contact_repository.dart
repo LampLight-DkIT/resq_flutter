@@ -19,7 +19,7 @@ class EmergencyContactsRepository {
         .map((snapshot) {
       return snapshot.docs.map((doc) {
         return EmergencyContact.fromMap(
-            doc.data() as Map<String, dynamic>, doc.id);
+            doc.data(), doc.id);
       }).toList();
     });
   }
@@ -128,7 +128,7 @@ class EmergencyContactsRepository {
 
       // Get the sender's information
       final senderDoc = await _firestore.collection('users').doc(userId).get();
-      final senderData = senderDoc.data() as Map<String, dynamic>?;
+      final senderData = senderDoc.data();
       final senderName = senderData?['name'] ?? 'Unknown User';
 
       // Additional validation and send logic
@@ -280,7 +280,7 @@ class EmergencyContactsRepository {
       return querySnapshot.docs
           .where((doc) => doc.id != currentUserId) // Exclude current user
           .map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         return {
           ...data,
           'id': doc.id,

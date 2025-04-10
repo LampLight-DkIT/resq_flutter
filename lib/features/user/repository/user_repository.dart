@@ -186,7 +186,7 @@ class UserRepository {
         querySnapshot = await _firestore
             .collection('users')
             .orderBy('name')
-            .startAt([lowerQuery]).endAt([lowerQuery + '\uf8ff']).get();
+            .startAt([lowerQuery]).endAt(['$lowerQuery\uf8ff']).get();
       }
 
       // Get list of users I'm already following

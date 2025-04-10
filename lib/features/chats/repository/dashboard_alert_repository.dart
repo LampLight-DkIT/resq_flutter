@@ -17,7 +17,7 @@ class DashboardAlertRepository {
         .map((snapshot) {
       return snapshot.docs.map((doc) {
         return DashboardAlert.fromMap(
-            doc.data() as Map<String, dynamic>, doc.id);
+            doc.data(), doc.id);
       }).toList();
     });
   }
@@ -32,7 +32,7 @@ class DashboardAlertRepository {
         .map((snapshot) {
       return snapshot.docs.map((doc) {
         return DashboardAlert.fromMap(
-            doc.data() as Map<String, dynamic>, doc.id);
+            doc.data(), doc.id);
       }).toList();
     });
   }

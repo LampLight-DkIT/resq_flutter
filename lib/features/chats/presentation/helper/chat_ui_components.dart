@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resq/features/add_contact_page/model/emergency_contact_model.dart';
 import 'package:resq/features/chats/models/message_model.dart';
-import 'package:resq/widget/widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Class containing reusable UI components for the chat interface
+import 'audio_message_bubble.dart';
+import 'image_message_bubble.dart';
+import 'location_message_bubble.dart';
+
 class ChatUIComponents {
-  // Build the chat appbar
   static AppBar buildAppBar({
     required BuildContext context,
     required EmergencyContact contact,
     required VoidCallback onEmergencyPressed,
   }) {
-    // No changes to appbar
     return AppBar(
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
@@ -60,28 +60,23 @@ class ChatUIComponents {
     );
   }
 
-  // Build message bubble
+// Updated buildMessageBubble function with improved media handling
   static Widget buildMessageBubble({
     required Message message,
     required bool isCurrentUser,
     String? contactPhotoURL,
+    String? currentUserPhotoURL,
     required String contactName,
+    required String currentUserName,
   }) {
+    print("DEBUG: Building message bubble for message type: ${message.type}");
+    print("DEBUG: Message content: ${message.content}");
+
     return Row(
       mainAxisAlignment:
           isCurrentUser ? MainAxisAlignment.end : MainAxisAlignment.start,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (!isCurrentUser)
-          CircleAvatar(
-            radius: 16,
-            backgroundImage:
-                contactPhotoURL != null ? NetworkImage(contactPhotoURL) : null,
-            child: contactPhotoURL == null
-                ? Text(contactName[0].toUpperCase(),
-                    style: const TextStyle(fontSize: 12))
-                : null,
-          ),
         const SizedBox(width: 8),
         Flexible(
           child: Container(
@@ -89,61 +84,131 @@ class ChatUIComponents {
             child: FutureBuilder<String?>(
               future: _getTriggerPhrase(),
               builder: (context, snapshot) {
-                // While loading, show a basic message
                 if (!snapshot.hasData) {
-                  return _buildBasicMessageBubble(message, isCurrentUser);
+                  return _renderMessageByType(message, isCurrentUser);
                 }
 
-                // Check if this is a trigger phrase - only do special handling for current user
                 final triggerPhrase = snapshot.data;
-                if (isCurrentUser &&
-                    triggerPhrase != null &&
+                final isTriggerMessage = triggerPhrase != null &&
                     message.content.trim().toLowerCase() ==
-                        triggerPhrase.toLowerCase()) {
-                  // Very subtle indication for the sender only - a slightly different shade
+                        triggerPhrase.toLowerCase();
+
+                // For sender: show the actual message with a red underline
+                if (isCurrentUser && isTriggerMessage) {
                   return _buildSubtleTriggerBubble(message, isCurrentUser);
                 }
 
-                // For others or non-trigger messages, just use the standard bubble
-                switch (message.type) {
-                  case MessageType.image:
-                    return ImageMessageBubble(
-                        message: message, isCurrentUser: isCurrentUser);
-                  case MessageType.document:
-                    return DocumentMessageBubble(
-                        message: message, isCurrentUser: isCurrentUser);
-                  case MessageType.audio:
-                    return AudioMessageBubble(
-                        message: message, isCurrentUser: isCurrentUser);
-                  case MessageType.location:
-                    return LocationMessageBubble(
-                        message: message, isCurrentUser: isCurrentUser);
-                  default:
-                    // Default case: text and emergency messages
-                    return _buildBasicMessageBubble(message, isCurrentUser);
+                // For receiver: replace trigger message with EMERGENCY ALERT
+                if (!isCurrentUser && isTriggerMessage) {
+                  // Create a modified message for display
+                  final emergencyMessage = message.copyWith(
+                    content: "EMERGENCY ALERT",
+                    type: MessageType.emergency,
+                  );
+                  return _renderMessageByType(emergencyMessage, isCurrentUser);
                 }
+
+                // Handle regular messages by type
+                return _renderMessageByType(message, isCurrentUser);
               },
             ),
           ),
         ),
         if (isCurrentUser)
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0),
-            child: Icon(Icons.done_all,
-                size: 16, color: message.isRead ? Colors.blue : Colors.grey),
+          CircleAvatar(
+            radius: 16,
+            backgroundImage: currentUserPhotoURL != null
+                ? NetworkImage(currentUserPhotoURL)
+                : null, // Use currentUserPhotoURL
+            child: currentUserPhotoURL == null
+                ? Text(
+                    currentUserName[0].toUpperCase(), // Use currentUserName
+                    style: const TextStyle(fontSize: 12),
+                  )
+                : null,
           ),
       ],
     );
   }
 
-  // Helper method to get the trigger phrase from SharedPreferences
+// New helper function to render different message types
+  static Widget _renderMessageByType(Message message, bool isCurrentUser) {
+    switch (message.type) {
+      case MessageType.image:
+        print("DEBUG: Rendering image bubble with content: ${message.content}");
+        return ImageMessageBubble(
+            message: message, isCurrentUser: isCurrentUser);
+
+      case MessageType.document:
+        return DocumentMessageBubble(
+            message: message, isCurrentUser: isCurrentUser);
+
+      case MessageType.audio:
+        return AudioMessageBubble(
+            message: message, isCurrentUser: isCurrentUser);
+
+      case MessageType.location:
+        return LocationMessageBubble(
+            message: message, isCurrentUser: isCurrentUser);
+
+      case MessageType.emergency:
+        return _buildEmergencyMessageBubble(message, isCurrentUser);
+
+      default:
+        return _buildBasicMessageBubble(message, isCurrentUser);
+    }
+  }
+
+// New helper for emergency messages
+  static Widget _buildEmergencyMessageBubble(
+      Message message, bool isCurrentUser) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      decoration: BoxDecoration(
+        color: Colors.red.shade100,
+        borderRadius: BorderRadius.circular(20.0),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 2,
+              offset: const Offset(0, 1))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.warning_amber, color: Colors.red, size: 16),
+              const SizedBox(width: 4),
+              Text(
+                'EMERGENCY',
+                style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message.content,
+            style: TextStyle(color: Colors.red.shade900, fontSize: 15),
+          ),
+        ],
+      ),
+    );
+  }
+
   static Future<String?> _getTriggerPhrase() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('alert_trigger_phrase');
   }
 
-// Build a basic message bubble (for text and emergency messages)
   static Widget _buildBasicMessageBubble(Message message, bool isCurrentUser) {
+    final content = message.content;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
       decoration: BoxDecoration(
@@ -159,15 +224,13 @@ class ChatUIComponents {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Display the message content
           Text(
-            message.content,
+            content,
             style: TextStyle(
                 color: isCurrentUser ? Colors.blue[900] : Colors.black87,
                 fontSize: 15),
           ),
-          // Show emergency indicator if needed
-          if (message.type == MessageType.emergency && isCurrentUser)
+          if (message.type == MessageType.emergency)
             Container(
               margin: const EdgeInsets.only(top: 4),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -179,7 +242,7 @@ class ChatUIComponents {
                 children: [
                   Icon(Icons.warning_amber, color: Colors.red, size: 12),
                   SizedBox(width: 4),
-                  Text('EMERGENCY',
+                  Text('EMERGENCY ALERT',
                       style: TextStyle(
                           color: Colors.red,
                           fontWeight: FontWeight.bold,
@@ -192,13 +255,10 @@ class ChatUIComponents {
     );
   }
 
-// Special bubble for trigger phrase messages
-  // Special subtle trigger bubble - just with a small line under the message
   static Widget _buildSubtleTriggerBubble(Message message, bool isCurrentUser) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
       decoration: BoxDecoration(
-        // Use standard bubble color - looks exactly like normal messages
         color: isCurrentUser ? Colors.blue.shade100 : Colors.grey.shade200,
         borderRadius: BorderRadius.circular(20.0),
         boxShadow: [
@@ -211,7 +271,6 @@ class ChatUIComponents {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Normal message text
           Text(
             message.content,
             style: TextStyle(
@@ -219,11 +278,10 @@ class ChatUIComponents {
               fontSize: 15,
             ),
           ),
-          // Just a simple red line under the message
           Container(
             margin: const EdgeInsets.only(top: 4),
-            height: 2, // Very thin line
-            width: 25, // Medium length line
+            height: 2,
+            width: 25,
             decoration: BoxDecoration(
               color: Colors.red,
               borderRadius: BorderRadius.circular(1),
@@ -234,9 +292,65 @@ class ChatUIComponents {
     );
   }
 
-  // Rest of the methods stay the same...
+  static String extractAttachmentUrl(Message message) {
+    if (message.attachmentUrl != null && message.attachmentUrl!.isNotEmpty) {
+      return message.attachmentUrl!;
+    }
 
-  // Build message input bar
+    if (message.content.contains('|')) {
+      final parts = message.content.split('|');
+      return parts[0];
+    }
+
+    return message.content;
+  }
+
+  static Map<String, String> extractDocumentMetadata(Message message) {
+    Map<String, String> metadata = {
+      'fileName': 'Document',
+      'fileSize': '',
+      'fileExt': '',
+    };
+
+    if (message.attachmentMetadata != null) {
+      if (message.attachmentMetadata!.containsKey('fileName')) {
+        metadata['fileName'] =
+            message.attachmentMetadata!['fileName'] as String;
+      }
+      if (message.attachmentMetadata!.containsKey('fileSize')) {
+        metadata['fileSize'] =
+            message.attachmentMetadata!['fileSize'] as String;
+      }
+      if (message.attachmentMetadata!.containsKey('fileExt')) {
+        metadata['fileExt'] = message.attachmentMetadata!['fileExt'] as String;
+      }
+      return metadata;
+    }
+
+    if (message.content.contains('|')) {
+      final parts = message.content.split('|');
+      if (parts.length > 1) metadata['fileName'] = parts[1];
+      if (parts.length > 2) metadata['fileSize'] = parts[2];
+      if (parts.length > 3) metadata['fileExt'] = parts[3];
+    }
+
+    return metadata;
+  }
+
+  static String extractAudioDuration(Message message) {
+    if (message.attachmentMetadata != null &&
+        message.attachmentMetadata!.containsKey('duration')) {
+      return message.attachmentMetadata!['duration'] as String;
+    }
+
+    if (message.content.contains('|')) {
+      final parts = message.content.split('|');
+      if (parts.length > 1) return parts[1];
+    }
+
+    return '0:00';
+  }
+
   static Widget buildMessageInputBar({
     required BuildContext context,
     required TextEditingController messageController,
@@ -260,14 +374,11 @@ class ChatUIComponents {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // Attachment button
             IconButton(
               icon: const Icon(Icons.attach_file),
               color: Colors.grey,
               onPressed: onAttachmentPressed,
             ),
-
-            // Message text field
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
@@ -294,10 +405,7 @@ class ChatUIComponents {
                 ),
               ),
             ),
-
             const SizedBox(width: 8),
-
-            // Send button
             GestureDetector(
               onLongPress: () {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -335,7 +443,6 @@ class ChatUIComponents {
     );
   }
 
-  // Build date header
   static Widget buildDateHeader(String date) {
     return Container(
       alignment: Alignment.center,
@@ -354,7 +461,6 @@ class ChatUIComponents {
     );
   }
 
-  // Build empty chat placeholder
   static Widget buildEmptyChatPlaceholder() {
     return Center(
       child: Column(
@@ -372,7 +478,6 @@ class ChatUIComponents {
     );
   }
 
-  // Build non-app user message
   static Widget buildNonAppUserMessage() {
     return Center(
       child: Column(
@@ -388,5 +493,110 @@ class ChatUIComponents {
         ],
       ),
     );
+  }
+
+  static String ensureDisplayableImageUrl(String url) {
+    // Check if the URL points to a HEIC image
+    if (url.toLowerCase().contains('.heic')) {
+      print("DEBUG: Converting HEIC URL to JPG: $url");
+      return url.replaceAll('.heic', '.jpg');
+    }
+    return url;
+  }
+}
+
+class DocumentMessageBubble extends StatelessWidget {
+  final Message message;
+  final bool isCurrentUser;
+
+  const DocumentMessageBubble({
+    super.key,
+    required this.message,
+    required this.isCurrentUser,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final documentUrl = ChatUIComponents.extractAttachmentUrl(message);
+    final metadata = ChatUIComponents.extractDocumentMetadata(message);
+
+    return Container(
+      width: MediaQuery.of(context).size.width * 0.6,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isCurrentUser ? Colors.blue.shade100 : Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Icon(
+                _getFileIcon(metadata['fileExt'] ?? ''),
+                color: Colors.blue,
+                size: 24,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  metadata['fileName'] ?? 'Document',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (metadata['fileSize']?.isNotEmpty ?? false)
+                  Text(
+                    metadata['fileSize']!,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.download_rounded),
+            onPressed: () {
+              // Implement document download/preview
+            },
+            color: Colors.blue,
+            iconSize: 20,
+            splashRadius: 20,
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getFileIcon(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'txt':
+        return Icons.article;
+      default:
+        return Icons.insert_drive_file;
+    }
   }
 }

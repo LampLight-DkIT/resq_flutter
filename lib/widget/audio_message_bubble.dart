@@ -7,10 +7,10 @@ class AudioMessageBubble extends StatefulWidget {
   final bool isCurrentUser;
 
   const AudioMessageBubble({
-    Key? key,
+    super.key,
     required this.message,
     required this.isCurrentUser,
-  }) : super(key: key);
+  });
 
   @override
   State<AudioMessageBubble> createState() => _AudioMessageBubbleState();
@@ -36,7 +36,7 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
   void _parseAudioMessage() {
     // The content format is "url|info"
     final parts = widget.message.content.split('|');
-    if (parts.length >= 1) {
+    if (parts.isNotEmpty) {
       _audioUrl = parts[0];
     }
     if (parts.length >= 2) {

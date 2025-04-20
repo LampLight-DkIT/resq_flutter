@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resq/features/add_contact_page/model/emergency_contact_model.dart';
 import 'package:resq/features/add_contact_page/presentation/add_contact_page.dart';
@@ -6,6 +7,7 @@ import 'package:resq/features/add_contact_page/presentation/emergency_alert_page
 import 'package:resq/features/add_contact_page/presentation/emergency_contacts_page.dart';
 import 'package:resq/features/auth/presentation/login_screen.dart';
 import 'package:resq/features/auth/presentation/sign_up_screen.dart';
+import 'package:resq/features/chats/bloc/chat_bloc.dart';
 import 'package:resq/features/chats/presentation/chats_page.dart';
 import 'package:resq/features/home/home_page.dart';
 import 'package:resq/features/intro/intro_one.dart';
@@ -64,17 +66,22 @@ final GoRouter router = GoRouter(
       builder: (context, state) => const AddContactPage(),
     ),
     GoRoute(
-      path: AppRoutes.emergencyAlert,
-      builder: (context, state) {
-        final contact = state.extra as EmergencyContact;
-        return EmergencyAlertPage(contact: contact);
-      },
-    ),
-    GoRoute(
       path: AppRoutes.chat,
       builder: (context, state) {
         final contact = state.extra as EmergencyContact;
+        // Make sure ChatPage has access to ChatBloc
         return ChatPage(contact: contact);
+      },
+    ),
+    GoRoute(
+      path: AppRoutes.emergencyAlert,
+      builder: (context, state) {
+        final contact = state.extra as EmergencyContact;
+        // Need to pass the ChatBloc from the parent context
+        return BlocProvider.value(
+          value: context.read<ChatBloc>(),
+          child: EmergencyAlertPage(contact: contact),
+        );
       },
     ),
     GoRoute(

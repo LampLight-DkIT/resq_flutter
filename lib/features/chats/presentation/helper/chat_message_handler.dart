@@ -8,11 +8,11 @@ import 'package:provider/provider.dart';
 import 'package:resq/core/services/attachment_handler.dart';
 import 'package:resq/core/services/chat_message_trigger_handler.dart';
 import 'package:resq/features/add_contact_page/model/emergency_contact_model.dart';
-import 'package:resq/features/add_contact_page/presentation/emergency_alert_page.dart';
 import 'package:resq/features/chats/bloc/chat_bloc.dart';
 import 'package:resq/features/chats/bloc/chat_event.dart';
 import 'package:resq/features/chats/models/chat_room_model.dart';
 import 'package:resq/features/chats/models/message_model.dart';
+import 'package:resq/router/router.dart';
 import 'package:resq/widget/widget.dart';
 
 /// Class responsible for handling all message-related operations
@@ -222,7 +222,6 @@ class ChatMessageHandler {
                     const Text('This will trigger an emergency notification'),
                 onTap: () {
                   Navigator.pop(context);
-                  onSendEmergency();
                   _navigateToEmergencyAlertPage();
                 },
               ),
@@ -247,12 +246,7 @@ class ChatMessageHandler {
 
   // Navigate to emergency alert page
   void _navigateToEmergencyAlertPage() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EmergencyAlertPage(contact: contact),
-      ),
-    );
+    context.goToEmergencyAlert(contact);
   }
 
   // Show attachment options with improved UI and error handling

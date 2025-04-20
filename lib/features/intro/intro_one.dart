@@ -209,7 +209,9 @@ class _IntroPageState extends State<IntroPage>
             child: Text(
               "Connect with emergency services discreetly and share critical information instantly.",
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelSmall,
+              style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
             ),
           ),
           const SizedBox(height: 15),
@@ -232,10 +234,9 @@ class _IntroPageState extends State<IntroPage>
                     ),
                     child: Text(
                       "Login",
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyLarge!
-                          .copyWith(color: AppColors.darkBlue),
+                      style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                          color: Colors.blueAccent,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -244,7 +245,7 @@ class _IntroPageState extends State<IntroPage>
                   child: ElevatedButton(
                     onPressed: () => context.go('/signup'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.darkBlue,
+                      backgroundColor: Colors.blueAccent,
                       padding: EdgeInsets.symmetric(vertical: 15.0),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(
@@ -255,10 +256,8 @@ class _IntroPageState extends State<IntroPage>
                     ),
                     child: Text(
                       "Sign up",
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyLarge!
-                          .copyWith(color: Colors.white),
+                      style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                          color: Colors.white, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),

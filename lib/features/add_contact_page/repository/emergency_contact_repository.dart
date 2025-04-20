@@ -18,8 +18,7 @@ class EmergencyContactsRepository {
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
-        return EmergencyContact.fromMap(
-            doc.data(), doc.id);
+        return EmergencyContact.fromMap(doc.data(), doc.id);
       }).toList();
     });
   }
@@ -87,6 +86,11 @@ class EmergencyContactsRepository {
         throw Exception('Recipient user not found');
       }
 
+      // Get the sender's information
+      final senderDoc = await _firestore.collection('users').doc(userId).get();
+      final senderData = senderDoc.data();
+      final senderName = senderData?['name'] ?? 'Unknown User';
+
       // Additional validation and send logic
       await _firestore.collection('emergency_alerts').add({
         'senderId': userId,
@@ -96,6 +100,26 @@ class EmergencyContactsRepository {
         'mediaUrls': [], // Add empty mediaUrls array for consistency
         'hasMedia': false,
         // Add any additional metadata
+      });
+
+      // Also add to dashboard_alerts for admin dashboard
+      await _firestore.collection('dashboard_alerts').add({
+        'senderId': userId,
+        'senderName': senderName,
+        'receiverId': contactId,
+        'receiverName': contactDoc.exists
+            ? (contactDoc.data() as Map<String, dynamic>)['name'] ?? 'Unknown'
+            : 'Unknown',
+        'content': customMessage ?? 'Emergency alert!',
+        'timestamp': FieldValue.serverTimestamp(),
+        'type': 'emergency_alert',
+        'status': 'pending',
+        'isHandled': false,
+        'handledBy': '',
+        'handledAt': null,
+        'mediaUrls': [],
+        'hasMedia': false,
+        'mediaCount': 0,
       });
     } catch (e) {
       print('Emergency Alert Error: $e');

@@ -162,41 +162,43 @@ class ChatUIComponents {
 // New helper for emergency messages
   static Widget _buildEmergencyMessageBubble(
       Message message, bool isCurrentUser) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-      decoration: BoxDecoration(
-        color: Colors.red.shade100,
-        borderRadius: BorderRadius.circular(20.0),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+    return Padding(
+      padding: const EdgeInsets.only(right: 10.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
               blurRadius: 2,
-              offset: const Offset(0, 1))
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.warning_amber, color: Colors.red, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                'EMERGENCY',
-                style: TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            message.content,
-            style: TextStyle(color: Colors.red.shade900, fontSize: 15),
-          ),
-        ],
+              offset: const Offset(0, 1),
+            )
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.warning_amber,
+                  size: 13.0,
+                  color: Colors.red.shade300,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Emergency',
+                  style: TextStyle(
+                    fontSize: 13.0,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

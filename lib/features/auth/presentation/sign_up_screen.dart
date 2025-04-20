@@ -235,7 +235,7 @@ class _SignUpPageState extends State<SignUpPage>
                           child: ElevatedButton(
                             onPressed: state is AuthLoading ? null : _onSignUp,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.darkBlue,
+                              backgroundColor: Colors.blueAccent,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),

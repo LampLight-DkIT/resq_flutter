@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
-import 'package:resq/constants/constants.dart';
 import 'package:resq/features/add_contact_page/presentation/emergency_contacts_page.dart';
 import 'package:resq/features/chats/presentation/chat_list_page.dart';
 import 'package:resq/features/notification/notification_page.dart';
@@ -37,7 +36,7 @@ class _HomePageState extends State<HomePage> {
           backgroundColor: Colors.white,
           color: Colors.grey[800],
           activeColor: Colors.white,
-          tabBackgroundColor: AppColors.darkBlue,
+          tabBackgroundColor: Colors.blueAccent,
           selectedIndex: _selectedIndex,
           onTabChange: (index) {
             setState(() {

@@ -144,7 +144,7 @@ class _LoginPageState extends State<LoginPage>
                             child: ElevatedButton(
                               onPressed: state is AuthLoading ? null : _onLogin,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.darkBlue,
+                                backgroundColor: Colors.blueAccent,
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(

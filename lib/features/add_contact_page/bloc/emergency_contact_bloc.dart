@@ -21,7 +21,8 @@ class EmergencyContactsBloc
     on<UpdateEmergencyContact>(_onUpdateEmergencyContact);
     on<DeleteEmergencyContact>(_onDeleteEmergencyContact);
     on<SendEmergencyAlert>(_onSendEmergencyAlert);
-    on<ResetEmergencyAlertState>(_onResetEmergencyAlertState);
+    on<ResetEmergencyAlertState>(
+        _onResetEmergencyAlertState); // Properly registered
 
     // New handlers for media-related events
     on<SendEmergencyAlertWithMedia>(_onSendEmergencyAlertWithMedia);
@@ -195,9 +196,10 @@ class EmergencyContactsBloc
       emit(EmergencyAlertError(e.toString()));
     }
   }
-}
 
-void _onResetEmergencyAlertState(
-    ResetEmergencyAlertState event, Emitter<EmergencyContactsState> emit) {
-  emit(EmergencyContactsInitial());
+  // Moved inside the class and properly implemented
+  void _onResetEmergencyAlertState(
+      ResetEmergencyAlertState event, Emitter<EmergencyContactsState> emit) {
+    emit(EmergencyContactsInitial());
+  }
 }

@@ -174,7 +174,7 @@ class _ChatListPageState extends State<ChatListPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _navigateToDiscoverUsers,
-        backgroundColor: AppColors.darkBlue,
+        backgroundColor: Colors.blueAccent,
         child: const Icon(Icons.person_add, color: Colors.white),
       ),
     );

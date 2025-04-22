@@ -574,22 +574,6 @@ class EmergencyAlertPageContentState extends State<EmergencyAlertPageContent>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ListTile(
-                leading: const Icon(Icons.warning),
-                title: const Text("Warning: Sending an emergency alert to"),
-                titleTextStyle: Theme.of(context).textTheme.labelLarge,
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(widget.contact.name),
-                    if (widget.contact.relation.isNotEmpty &&
-                        widget.contact.relation != 'App User')
-                      Text(widget.contact.relation),
-                  ],
-                ),
-                subtitleTextStyle: Theme.of(context).textTheme.labelSmall,
-              ),
-              const SizedBox(height: 24),
               const Text(
                 'Emergency Message',
                 style: TextStyle(
@@ -603,7 +587,7 @@ class EmergencyAlertPageContentState extends State<EmergencyAlertPageContent>
                 maxLines: 4,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
-                  hintText: 'Enter emergency message',
+                  hintText: 'Enter your message here',
                 ),
               ),
               const SizedBox(height: 16),
@@ -650,72 +634,49 @@ class EmergencyAlertPageContentState extends State<EmergencyAlertPageContent>
                   ),
                 ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+              GridView.count(
+                crossAxisCount: 3,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 4,
+                crossAxisSpacing: 4,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                childAspectRatio: 1.2, // Tighter aspect ratio
                 children: [
-                  ElevatedButton.icon(
+                  _buildGridButton(
                     onPressed: _isSending ? null : _pickImage,
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Take Photo'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                    ),
+                    icon: Icons.camera_alt,
+                    color: Colors.blue,
+                    label: 'Photo',
                   ),
-                  ElevatedButton.icon(
+                  _buildGridButton(
                     onPressed: _isSending ? null : _pickImageFromGallery,
-                    icon: const Icon(Icons.photo_library),
-                    label: const Text('Gallery'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                    ),
+                    icon: Icons.photo_library,
+                    color: Colors.blue,
+                    label: 'Gallery',
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  ElevatedButton.icon(
+                  _buildGridButton(
                     onPressed: _isSending ? null : _recordVideo,
-                    icon: const Icon(Icons.videocam),
-                    label: const Text('Record Video'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                    ),
+                    icon: Icons.videocam,
+                    color: Colors.purple,
+                    label: 'Video',
                   ),
-                  ElevatedButton.icon(
+                  _buildGridButton(
                     onPressed: _isSending ? null : _pickVideoFromGallery,
-                    icon: const Icon(Icons.video_library),
-                    label: const Text('Video Gallery'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                    ),
+                    icon: Icons.video_library,
+                    color: Colors.purple,
+                    label: 'Videos',
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton.icon(
+                  _buildGridButton(
                     onPressed: _isSending
                         ? null
                         : (_isRecording ? _stopRecording : _startRecording),
-                    icon: Icon(_isRecording ? Icons.stop : Icons.mic),
-                    label:
-                        Text(_isRecording ? 'Stop Recording' : 'Record Audio'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isRecording ? Colors.red : Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
+                    icon: _isRecording ? Icons.stop : Icons.mic,
+                    color: _isRecording ? Colors.red : Colors.green,
+                    label: _isRecording ? 'Stop' : 'Audio',
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
               if (_imageFiles.isNotEmpty ||
                   _videoFile != null ||
                   _audioFile != null)
@@ -893,4 +854,29 @@ class EmergencyAlertPageContentState extends State<EmergencyAlertPageContent>
       ),
     );
   }
+}
+
+Widget _buildGridButton({
+  required VoidCallback? onPressed,
+  required IconData icon,
+  required Color color,
+  required String label,
+}) {
+  return Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      IconButton(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        iconSize: 24,
+        color: color,
+        tooltip: label,
+      ),
+      const SizedBox(height: 4),
+      Text(
+        label,
+        style: const TextStyle(fontSize: 11),
+      ),
+    ],
+  );
 }

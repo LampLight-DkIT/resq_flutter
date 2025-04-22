@@ -86,7 +86,7 @@ class _SplashScreenState extends State<SplashScreen>
               child: Image.asset(
                 AssetsManager.background,
                 filterQuality: FilterQuality.high,
-                color: AppColors.goldenYellow.withOpacity(0.3),
+                color: AppColors.goldenYellow,
                 fit: BoxFit.cover,
                 width: MediaQuery.of(context).size.width * 0.5,
                 height: MediaQuery.of(context).size.height / 2,
@@ -105,7 +105,7 @@ class _SplashScreenState extends State<SplashScreen>
                 );
               },
               child: Image.asset(
-                AssetsManager.logoFull,
+                "assets/imgs/logos/resq-new.jpg",
                 color: AppColors.goldenYellow,
                 width: 250.0,
                 filterQuality: FilterQuality.high,

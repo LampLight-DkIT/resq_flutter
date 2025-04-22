@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
-import 'package:resq/features/add_contact_page/presentation/emergency_contacts_page.dart';
 import 'package:resq/features/chats/presentation/chat_list_page.dart';
 import 'package:resq/features/notification/notification_page.dart';
 import 'package:resq/features/profile/presentation/profile_page.dart';
@@ -18,7 +17,6 @@ class _HomePageState extends State<HomePage> {
   // Updated pages list to include EmergencyContactsPage
   final List<Widget> _pages = [
     const ChatListPage(),
-    const EmergencyContactsPage(), // Add the emergency contacts page
     const NotificationPage(),
     const ProfilePage(),
   ];
@@ -49,10 +47,6 @@ class _HomePageState extends State<HomePage> {
               ),
           tabs: [
             const GButton(icon: Icons.forum, text: 'Chats'),
-            const GButton(
-              icon: Icons.help_outlined,
-              text: 'Alerts',
-            ),
             const GButton(icon: Icons.notifications, text: 'Alerts'),
             const GButton(icon: Icons.person, text: 'Profile'),
           ],

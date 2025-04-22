@@ -207,17 +207,21 @@ class ChatMessageHandler {
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
                   'Send Emergency Alert',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 20.0,
+                      ),
                 ),
               ),
-              const Divider(),
               ListTile(
                 leading: const Icon(Icons.warning_amber_outlined,
                     color: Colors.red, size: 32),
-                title: Text('Send Emergency Alert to ${contact.name}'),
+                title: Text(
+                  '${contact.name}',
+                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
                 subtitle:
                     const Text('This will trigger an emergency notification'),
                 onTap: () {

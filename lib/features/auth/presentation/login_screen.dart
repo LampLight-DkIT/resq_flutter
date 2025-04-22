@@ -89,10 +89,12 @@ class _LoginPageState extends State<LoginPage>
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Image.asset(AssetsManager.logoFull,
-                          color: AppColors.goldenYellow,
-                          width: 190.0,
-                          filterQuality: FilterQuality.high),
+                      Image.asset(
+                        "assets/imgs/logos/news-resq-logo.png",
+                        color: Colors.black,
+                        width: 190.0,
+                        filterQuality: FilterQuality.high,
+                      ),
                       const SizedBox(height: 40),
 
                       // Email Field

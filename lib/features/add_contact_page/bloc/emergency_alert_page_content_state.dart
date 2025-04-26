@@ -662,12 +662,6 @@ class EmergencyAlertPageContentState extends State<EmergencyAlertPageContent>
                     label: 'Video',
                   ),
                   _buildGridButton(
-                    onPressed: _isSending ? null : _pickVideoFromGallery,
-                    icon: Icons.video_library,
-                    color: Colors.purple,
-                    label: 'Videos',
-                  ),
-                  _buildGridButton(
                     onPressed: _isSending
                         ? null
                         : (_isRecording ? _stopRecording : _startRecording),
